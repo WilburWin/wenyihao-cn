@@ -1,0 +1,7 @@
+const cabinets=[
+ {id:'go',name:'星弈围棋',en:'BLACK & WHITE',meta:'双人联机 / 人机练习',description:'一子落下，另一种可能展开。',scene:'<div class="mini-board"><i></i><i></i><i></i><i></i><i></i></div>',action:'落子开局'},
+ {id:'mahjong',name:'雀神麻将',en:'THE LUCKY TABLE',meta:'1–4 人 / 电脑补位',description:'牌桌已就位，就等你入座。',scene:'<div class="tiles"><i>發</i><i>中</i><i>萬</i></div>',action:'入座摸牌'},
+ {id:'billiards',name:'黑八台球',en:'MAKE THE SHOT',meta:'双人联机 / 自由练习',description:'找准角度，让好球落袋。',scene:'<div class="pool-table"><i class="cue-ball"></i><i class="eight-ball">8</i><i class="pocket"></i><i class="cue"></i></div>',action:'击球开场'},
+ {id:'catwhere',name:'猫咪在哪里',en:'HIDE & SEEK',meta:'单人解谜 / 三种难度',description:'每一块颜色里，都藏着一点线索。',scene:'<div class="cat-grid"><img src="/games/catwhere/assets/favicon.svg" alt=""><i></i><i></i><i></i></div>',action:'寻找猫咪'}
+];
+document.querySelector('#arcade-grid').innerHTML=cabinets.map((g,i)=>`<a class="cabinet cabinet-${g.id}" href="/games/${g.id}/"><div class="cabinet-marquee"><span>0${i+1}</span><span>${g.en}</span><i aria-hidden="true"></i></div><div class="cabinet-screen" aria-hidden="true">${g.scene}</div><div class="cabinet-copy"><h2>${g.name}</h2><span class="game-mode">${g.meta}</span><p>${g.description}</p></div><div class="cabinet-controls"><span class="joystick" aria-hidden="true"></span><span class="arcade-start">${g.action} ↗</span><span class="arcade-buttons" aria-hidden="true"><i></i><i></i></span></div></a>`).join('');

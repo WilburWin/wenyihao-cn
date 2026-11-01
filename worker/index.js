@@ -1,7 +1,16 @@
+import {Guestbook, repositories, json} from './community.js';
+export {Guestbook};
 const games = new Set(['go', 'mahjong', 'billiards']);
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if(url.pathname==='/api/github')return repositories(request,ctx);
+    if(url.pathname==='/api/guestbook'){
+      if(request.method!=='GET'&&request.headers.get('Origin')!==url.origin)return json({message:'来源验证失败。'},403);
+      if(request.method==='DELETE'&&(!env.GUESTBOOK_ADMIN_TOKEN||request.headers.get('Authorization')!==`Bearer ${env.GUESTBOOK_ADMIN_TOKEN}`))return json({message:'无权移除便签。'},403);
+      if(Number(request.headers.get('Content-Length'))>4096)return json({message:'提交内容过长。'},413);
+      return env.GUESTBOOK.get(env.GUESTBOOK.idFromName('public-wall')).fetch(request);
+    }
     if (url.pathname.startsWith('/realtime/')) {
       const [, , game, room] = url.pathname.split('/');
       if (!games.has(game) || !/^[1-9]\d{2}$/.test(room || '')) return new Response('Invalid room', {status:400});

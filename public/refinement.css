@@ -1,0 +1,64 @@
+/* Shared reading scale and layout rhythm. */
+:root{--muted:#536b79}
+nav .en{font-size:11px;margin-top:2px}
+.content p .en{font-size:12px;line-height:1.6;margin-top:5px}
+.content h2 .en{font-size:13px;margin-top:5px}
+.play small,.areas small{font-size:12px}
+body.home-page>header{padding-block:18px}
+.home-page:not(.games-page):not(.photo-page) .home-intro{grid-template-columns:repeat(12,minmax(0,1fr));min-height:560px;max-width:1280px;margin-inline:auto;padding-block:28px}
+.home-intro .intro-copy{grid-column:2/8;max-width:470px;padding-block:18px}
+.home-intro .intro-role{font-size:14px;margin-bottom:18px;letter-spacing:.06em}
+.intro-role span{font-size:12px}
+.home-intro h1{font-size:clamp(64px,6vw,88px);margin-bottom:26px;letter-spacing:.04em}
+.home-intro h1 .en{font-size:21px;margin-top:12px}
+.home-intro .intro-research{font-size:19px;margin-bottom:18px;line-height:1.75}
+.home-intro .intro-note{font-size:14px}
+.home-intro .intro-note .en{font-size:12px;max-width:31em;line-height:1.6}
+.home-intro .portrait-carousel{grid-column:6/12;max-width:570px;width:112%;justify-self:start;transform:translateX(-5%)}
+.home-intro .portrait-layer{left:10%;width:79%;top:4%;height:92%}
+.home-intro .portrait-layer.is-left{transform:translate(-7%,0) rotate(-3deg) scale(.96);opacity:.14}
+.home-intro .portrait-layer.is-right{transform:translate(7%,0) rotate(3deg) scale(.96);opacity:.16}
+.section-heading{margin-top:18px;margin-bottom:18px}
+.section-heading h2{font-size:23px;margin:10px 0}
+.section-heading h2 .en{font-size:13px;margin-top:3px}
+.home-page:not(.games-page):not(.photo-page) .games{gap:18px}
+.home-page:not(.games-page):not(.photo-page) .game{display:grid;grid-template-columns:88px minmax(0,1fr);border:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);border-radius:0;background:transparent;padding:20px 0;gap:16px;align-items:center}
+.home-page:not(.games-page):not(.photo-page) .game .cover{height:88px;width:88px;aspect-ratio:1;border-radius:12px}
+.home-page:not(.games-page):not(.photo-page) .game .content{padding:0;min-width:0}
+.home-page:not(.games-page):not(.photo-page) .game .content h2{font-size:18px}
+.home-page:not(.games-page):not(.photo-page) .game .content p,.home-page:not(.games-page):not(.photo-page) .game .meta{display:none}
+.home-page:not(.games-page):not(.photo-page) .game .play{margin-top:10px;padding:0;border:0;font-size:13px}
+.home-page:not(.games-page):not(.photo-page) .game .play small{display:none}
+.home-page:not(.games-page):not(.photo-page) .go .board{font-size:28px;letter-spacing:4px}
+.home-page:not(.games-page):not(.photo-page) .ball{width:55px;height:55px}
+.home-page:not(.games-page):not(.photo-page) .ball span{width:28px;height:28px;font-size:23px}
+.home-page:not(.games-page):not(.photo-page) .cover.cats img{width:50px;height:50px}
+.home-page:not(.games-page):not(.photo-page) .about{margin-top:40px;padding:24px 0 12px}
+.home-page:not(.games-page):not(.photo-page) .about h2{font-size:20px;margin-top:0}
+.home-page:not(.games-page):not(.photo-page) .about .en{font-size:12px;line-height:1.6}
+.games-page .intro{padding-block:36px}
+.games-page .game{border-radius:10px}
+.games-page .content{padding:22px}
+.games-page .content p{line-height:1.8}
+.photo-filters small{font-size:11px}
+@media(min-width:1200px){.home-page:not(.games-page):not(.photo-page) .games{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(min-width:701px) and (max-width:1000px){.home-intro .intro-copy{grid-column:1/8}.home-intro .portrait-carousel{grid-column:7/13;width:105%;transform:translateX(-8%)}.home-intro .intro-research{font-size:17px}.home-intro h1{font-size:64px}}
+@media(max-width:700px){
+body.home-page>header{padding-block:16px}nav{gap:18px}nav .en{font-size:10px}
+.home-page:not(.games-page):not(.photo-page) .home-intro{grid-template-columns:1fr;min-height:0;padding:28px 0 8px;gap:0}
+.home-intro .intro-copy{grid-column:1;grid-row:1;max-width:none;padding:0}
+.home-intro .intro-role{margin-bottom:14px}.home-intro h1{font-size:64px;margin-bottom:22px}.home-intro h1 .en{font-size:18px}
+.home-intro .intro-research{font-size:17px;margin-bottom:14px}.home-intro .intro-note .en{font-size:12px}
+.home-intro .portrait-carousel{grid-column:1;grid-row:2;width:100%;max-width:370px;justify-self:center;transform:none;margin-top:-4px;aspect-ratio:1.2/1}
+.home-intro .portrait-layer{left:17%;width:66%;top:0;height:100%}
+.home-page:not(.games-page):not(.photo-page) .games{grid-template-columns:minmax(0,1fr);gap:0}
+.home-page:not(.games-page):not(.photo-page) .game{grid-template-columns:76px minmax(0,1fr);padding:16px 0;border-bottom:0;gap:18px}
+.home-page:not(.games-page):not(.photo-page) .game:last-child{border-bottom:1px solid var(--line)}
+.home-page:not(.games-page):not(.photo-page) .game .cover{width:76px;height:76px}
+.home-page:not(.games-page):not(.photo-page) .game .content h2{font-size:18px}.home-page:not(.games-page):not(.photo-page) .game .content h2 .en{font-size:12px}
+.home-page:not(.games-page):not(.photo-page) .game .play{margin-top:6px}
+}
+
+@media(max-width:420px){body.home-page>header{padding-inline:14px}nav{gap:12px}nav a{font-size:13px}nav .en{font-size:10px}.brand{font-size:17px}}
+
+.bilibili-entry{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:28px 0;border-top:1px solid var(--line);margin-top:36px}.bilibili-entry h2{font-size:21px;font-weight:500;margin:0}.bilibili-entry .en{font-size:12px}.bilibili-entry p{font-size:14px;margin-bottom:0}.bilibili-entry>a{color:var(--accent);font-size:14px;flex-shrink:0}@media(max-width:420px){.bilibili-entry{align-items:start;flex-direction:column}}
