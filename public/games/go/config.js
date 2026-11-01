@@ -1,0 +1,1 @@
+window.STARY_GO_API = location.origin + "/relay/go";

@@ -1,0 +1,1 @@
+window.BILLIARDS_NETWORK_CONFIG = { signalingUrl: location.origin + "/relay/billiards", toyPublicUrl: location.origin + "/games/billiards/", iceServers: [] };

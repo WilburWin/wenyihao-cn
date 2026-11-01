@@ -1,0 +1,1 @@
+window.QUES_HEN_CONFIG = { signalBase: location.origin + "/relay/mahjong" };

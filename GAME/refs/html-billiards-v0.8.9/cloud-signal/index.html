@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>8Balls Signal</title>
+<style>
+body{font-family:system-ui,sans-serif;background:#09130f;color:#eafff3;margin:0;display:grid;place-items:center;min-height:100vh}
+main{max-width:680px;padding:28px;border:1px solid #244338;border-radius:18px;background:#0e1d17}
+code{background:#152b22;padding:3px 6px;border-radius:6px}
+small{color:#91aa9f}
+</style>
+</head>
+<body>
+<main>
+<h1>8Balls 联机信令服务</h1>
+<p>这个站点是 B站 Toy 8Balls 的联机中继（v2.1.0，3 位数字房间号）。</p>
+<p>健康检查：<code>/health</code></p>
+<p><small>如果 /health 中 db=false，请在 Cloudflare Pages 项目的 Settings → Bindings 中绑定 D1 数据库，变量名必须是 DB，然后重新部署一次。</small></p>
+</main>
+</body>
+</html>

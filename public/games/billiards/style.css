@@ -1,0 +1,985 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap');
+
+:root {
+  color-scheme: dark;
+  --text: #f4fbf8;
+  --muted: #9bb2a8;
+  --line: rgba(255,255,255,.09);
+  --green: #18cc7e;
+  --gold: #eab348;
+  --danger: #ff6260;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  color: var(--text);
+  overflow-x: hidden;
+  font-family: Inter, "Noto Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  background:
+    radial-gradient(circle at 50% -12%, rgba(47,154,110,.22), transparent 35%),
+    url("./assets/textures/room-noise.svg"),
+    linear-gradient(180deg, #091712, #05100d);
+  background-size: auto, 220px 220px, auto;
+}
+button, input, select { font: inherit; }
+button:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid #7af2b8; outline-offset: 2px;
+}
+.hidden { display: none !important; }
+
+.app-shell {
+  width: 100%;
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 10px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.topbar {
+  display: grid;
+  grid-template-columns: minmax(230px,.8fr) minmax(620px,1.7fr) minmax(360px,1fr);
+  gap: 12px;
+  align-items: center;
+}
+
+.brand { display:flex; align-items:center; gap:12px; min-width: 0; }
+.brand-mark {
+  width:52px; height:52px; border-radius:50%; display:grid; place-items:center;
+  background: radial-gradient(circle at 34% 28%, #4d5654, #060807 60%);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.18), 0 10px 24px rgba(0,0,0,.28);
+  font-size:24px; font-weight:800;
+}
+.brand h1 { margin:0 0 2px; font-size:20px; }
+.brand p { margin:0; font-size:10px; letter-spacing:.13em; color:#8da59b; }
+.version { color:#8ae3b7; }
+
+.scoreboard {
+  min-height:108px;
+  display:grid;
+  grid-template-columns:1fr 180px 1fr;
+  border:1px solid var(--line);
+  border-radius:20px;
+  overflow:hidden;
+  background:linear-gradient(180deg,rgba(6,19,15,.95),rgba(7,16,14,.76));
+  box-shadow:0 18px 50px rgba(0,0,0,.23);
+}
+.player-card {
+  min-width:0; align-self:stretch; display:flex; align-items:center; gap:14px;
+  padding:12px 16px; opacity:.72; transition:.18s ease;
+}
+.player-card.active { opacity:1; background:linear-gradient(90deg,rgba(24,204,126,.12),transparent); }
+.player-head { flex:0 0 auto; display:flex; align-items:center; gap:10px; min-width: 140px; }
+.avatar {
+  width:44px; height:44px; flex:0 0 auto; border-radius:50%; display:grid; place-items:center;
+  font-weight:800; font-size:11px; border:1px solid rgba(255,255,255,.13);
+}
+.avatar.host { background:linear-gradient(145deg,#2b75c3,#153958); }
+.avatar.guest { background:linear-gradient(145deg,#7a3ed4,#39215f); }
+.player-meta { min-width:0; display:flex; flex-direction:column; gap:5px; }
+.player-name { font-size:13px; font-weight:700; }
+.player-note { font-size:10px; color:#8ea59b; }
+.player-detail { min-width:0; display:flex; flex-direction:column; gap:6px; flex:1; }
+.target-line, .pocketed-line {
+  display:flex; align-items:center; gap:8px; min-height: 22px;
+}
+.target-line span, .pocketed-line span { font-size:10px; color:#93ada3; white-space: nowrap; }
+.target-line strong { font-size:12px; color:#eefaf4; }
+.mini-balls, .strip-balls {
+  display:flex; gap:5px; flex-wrap:wrap; min-height:26px; align-items:center;
+}
+.unassigned { font-size:10px; color:#7d968c; }
+
+.score-center {
+  align-self:stretch; text-align:center; display:flex; flex-direction:column; justify-content:center;
+  border-inline:1px solid rgba(255,255,255,.06); background:rgba(0,0,0,.12);
+}
+.score-center strong { font-size:28px; line-height:1; }
+.score-center > span { margin-top:6px; color:#95afa5; font-size:10px; }
+.mode-badges { display:flex; justify-content:center; gap:5px; margin-top:7px; }
+.mode-pill {
+  padding:3px 8px; border-radius:999px; border:1px solid rgba(255,255,255,.07);
+  color:#9fb3ab; background:rgba(255,255,255,.03); font-size:8px; letter-spacing:.05em;
+}
+.mode-pill.active { color:#e4fff2; background:rgba(24,204,126,.14); border-color:rgba(24,204,126,.28); }
+
+.header-actions { display:flex; justify-content:flex-end; align-items:center; gap:8px; }
+.icon-btn, .select-wrap {
+  min-height:43px; border-radius:12px; border:1px solid var(--line);
+  background:rgba(255,255,255,.04); color:white;
+}
+.icon-btn { min-width:45px; padding:0 11px; cursor:pointer; }
+.icon-btn:hover { background:rgba(255,255,255,.09); transform:translateY(-1px); }
+.select-wrap { display:flex; align-items:center; gap:7px; padding:0 9px; }
+.select-wrap > span { font-size:9px; color:#8fa79e; }
+.select-wrap select {
+  border:0; outline:0; background:transparent; color:#edf8f3; font-size:11px; cursor:pointer;
+}
+.select-wrap option { background:#10261e; color:white; }
+
+.game-layout {
+  flex:1; min-height:0;
+  display:grid; grid-template-columns:96px minmax(0,1fr) 104px; gap:10px;
+}
+
+.power-panel, .side-actions {
+  border:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(11,34,27,.92),rgba(5,18,14,.86));
+  border-radius:20px;
+  box-shadow:0 28px 74px rgba(0,0,0,.32);
+}
+.power-panel {
+  min-height:610px; padding:18px 9px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px;
+}
+.power-label { writing-mode:vertical-rl; font-size:10px; letter-spacing:.16em; color:#afc0b8; }
+.power-track {
+  width:18px; height:min(300px,42vh); position:relative; overflow:hidden; border-radius:999px;
+  background:rgba(255,255,255,.07); box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);
+}
+.power-fill {
+  position:absolute; left:2px; right:2px; bottom:2px; height:0; border-radius:999px;
+  background:linear-gradient(0deg,#13c66c 0%,#d6dc2d 53%,#ff9d22 76%,#ff4d4f 100%);
+}
+.power-glow { position:absolute; inset:0; box-shadow:inset 0 0 12px rgba(255,255,255,.05); }
+#powerText { font-size:11px; }
+
+.spin-panel {
+  margin-top:8px; padding-top:13px; border-top:1px solid rgba(255,255,255,.06);
+  display:flex; flex-direction:column; align-items:center; gap:7px; width:100%;
+}
+.spin-title { font-size:9px; color:#81998f; letter-spacing:.08em; }
+.spin-ball {
+  width:76px; height:76px; border-radius:50%; border:1px solid rgba(255,255,255,.22);
+  position:relative; cursor:crosshair; overflow:hidden;
+  background:radial-gradient(circle at 34% 27%,#fff,#e9e8e3 55%,#9d9d98 100%);
+  box-shadow:inset -7px -9px 13px rgba(0,0,0,.14),0 7px 16px rgba(0,0,0,.2);
+}
+.spin-cross { position:absolute; background:rgba(0,0,0,.12); pointer-events:none; }
+.spin-cross.x { height:1px; left:7px; right:7px; top:50%; }
+.spin-cross.y { width:1px; top:7px; bottom:7px; left:50%; }
+#spinKnob {
+  width:12px; height:12px; border-radius:50%; position:absolute; left:50%; top:50%;
+  transform:translate(-50%,-50%); background:#13a668; box-shadow:0 0 0 2px rgba(255,255,255,.8),0 2px 5px rgba(0,0,0,.32);
+  pointer-events:none;
+}
+#spinText { color:#a7b9b1; font-size:10px; }
+.spin-reset {
+  border:0; border-radius:8px; background:rgba(255,255,255,.05); color:#a9bbb3; font-size:10px;
+  padding:6px 10px; cursor:pointer;
+}
+
+.table-wrap {
+  min-width:0; min-height:610px; position:relative; display:grid; place-items:center;
+  border-radius:28px; overflow:hidden;
+  background:linear-gradient(150deg,#2d2017,#0c0e0d 55%,#21170f);
+  border:1px solid rgba(255,255,255,.07);
+  box-shadow:0 36px 96px rgba(0,0,0,.42);
+  touch-action:none; user-select:none;
+}
+#gameCanvas {
+  width:100%; height:auto; max-height:calc(100vh - 190px);
+  aspect-ratio:1600/900; display:block; touch-action:none;
+}
+.status-pill, .perf-chip, .ball-in-hand {
+  position:absolute; z-index:4; border:1px solid rgba(255,255,255,.08);
+  background:rgba(4,16,12,.68); backdrop-filter:blur(9px); border-radius:999px;
+  color:#afc2ba; font-size:10px; pointer-events:none;
+}
+.status-pill {
+  left:50%; bottom:12px; transform:translateX(-50%);
+  padding:8px 13px; max-width:75%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.perf-chip { top:11px; right:12px; padding:6px 9px; opacity:.68; }
+.perf-sep { opacity:.35; padding:0 3px; }
+.ball-in-hand {
+  top:11px; left:50%; transform:translateX(-50%);
+  padding:7px 12px; color:#fff1bd; border-color:rgba(234,179,72,.24); background:rgba(45,31,8,.72);
+}
+
+.confetti-layer {
+  position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:10;
+}
+.confetti-piece {
+  position:absolute;
+  width:12px; height:22px;
+  border-radius:2px;
+  opacity:0;
+  animation: confetti-fall var(--dur, 3.2s) cubic-bezier(.18,.72,.18,1) forwards;
+  transform: translate3d(0,0,0) rotate(0deg);
+}
+.confetti-piece.ribbon { width:8px; height:32px; border-radius:999px; }
+@keyframes confetti-fall {
+  0% {
+    opacity: 1;
+    transform: translate(var(--sx), var(--sy)) rotate(0deg) scale(1);
+  }
+  15% { opacity: 1; }
+  100% {
+    opacity: 0;
+    transform: translate(var(--tx), var(--ty)) rotate(var(--rot)) scale(.9);
+  }
+}
+
+.game-over {
+  position:absolute; inset:0; z-index:9; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:rgba(2,11,8,.66); backdrop-filter:blur(5px);
+}
+.trophy { font-size:46px; }
+.game-over h2 { margin:10px 0 4px; font-size:32px; }
+.game-over p { margin:0 0 18px; color:#a6bbb1; }
+.overlay-actions { display:flex; gap:10px; }
+
+.side-actions { display:grid; align-content:center; padding:8px; gap:6px; }
+.action-btn {
+  min-height:78px; border:0; border-bottom:1px solid rgba(255,255,255,.06);
+  background:transparent; color:#e9f2ee; cursor:pointer; border-radius:12px;
+  display:flex; flex-direction:column; justify-content:center; align-items:center; gap:6px;
+}
+.action-btn:last-child { border-bottom:0; }
+.action-btn:hover, .action-btn.active { background:rgba(255,255,255,.06); }
+.action-btn span { font-size:23px; }
+.action-btn em { font-size:9px; font-style:normal; color:#abc0b7; }
+
+.hud-ball {
+  --ball: #ccc;
+  position:relative;
+  width:22px; height:22px; border-radius:50%;
+  display:grid; place-items:center;
+  border:1px solid rgba(255,255,255,.14);
+  box-shadow:0 3px 7px rgba(0,0,0,.24), inset 0 0 0 1px rgba(255,255,255,.04);
+  color:#0c100f;
+  overflow:hidden;
+}
+.hud-ball.solid {
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255,255,255,.88) 0 12%, rgba(255,255,255,0) 28%),
+    var(--ball);
+}
+.hud-ball.stripe {
+  background:
+    linear-gradient(180deg, #f6f4ee 0 24%, var(--ball) 24% 76%, #f6f4ee 76% 100%);
+}
+.hud-ball.cue {
+  background:
+    radial-gradient(circle at 34% 28%, rgba(255,255,255,.88) 0 12%, rgba(255,255,255,0) 28%),
+    #f7f5ef;
+}
+.hud-ball b {
+  width:11px; height:11px; border-radius:50%; background:#f7f5ef;
+  display:grid; place-items:center;
+  font-size:7px; font-weight:800;
+  color:#111;
+}
+.hud-ball.done { opacity:.25; transform:scale(.9); }
+
+.footer {
+  min-height:28px; display:grid; grid-template-columns:1fr 1.35fr 1fr; gap:14px; align-items:center;
+  color:#789187; font-size:9px;
+}
+.footer .tips { text-align:center; color:#97aba3; }
+.footer > :last-child { text-align:right; }
+.dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:5px; }
+.dot.online { background:var(--green); box-shadow:0 0 9px rgba(24,204,126,.75); }
+
+.primary-btn, .ghost-btn {
+  border-radius:12px; padding:11px 21px; cursor:pointer; font-weight:800;
+}
+.primary-btn { border:0; background:linear-gradient(180deg,#27d98a,#13ad69); color:#062016; }
+.ghost-btn { border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.06); color:#eaf7f1; }
+
+dialog {
+  width:min(840px,calc(100vw - 30px)); padding:0; border:1px solid rgba(255,255,255,.11);
+  border-radius:22px; background:#0b1d17; color:#f4fbf7; box-shadow:0 35px 100px rgba(0,0,0,.56);
+}
+dialog::backdrop { background:rgba(0,0,0,.68); backdrop-filter:blur(4px); }
+.dialog-head {
+  display:flex; align-items:flex-start; justify-content:space-between; padding:22px 24px 15px;
+  border-bottom:1px solid rgba(255,255,255,.07);
+}
+.eyebrow { font-size:9px; letter-spacing:.16em; color:#56cf98; font-weight:800; }
+.dialog-head h2 { margin:4px 0 0; font-size:22px; }
+.dialog-close {
+  width:35px; height:35px; border-radius:50%; border:1px solid rgba(255,255,255,.09);
+  background:rgba(255,255,255,.04); color:white; font-size:22px; cursor:pointer;
+}
+.dialog-body { padding:21px 24px 24px; }
+.help-grid, .training-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.help-grid article, .training-card, .lan-status-box {
+  padding:15px; border-radius:14px; border:1px solid rgba(255,255,255,.06); background:rgba(255,255,255,.035);
+}
+.help-grid b { color:#67dfa8; font-size:12px; }
+.help-grid p, .rule-note, .training-card span, .lan-grid label span, .lan-status-box small {
+  color:#9eb3aa; line-height:1.68; font-size:11px; margin:7px 0 0;
+}
+.rule-note {
+  margin-top:16px; padding:12px 14px; border-radius:12px; border:1px solid rgba(234,179,72,.12);
+  background:rgba(234,179,72,.06);
+}
+.training-card {
+  text-align:left; cursor:pointer; color:#eefaf4; transition:.16s ease;
+}
+.training-card:hover { background:rgba(24,204,126,.08); border-color:rgba(24,204,126,.18); transform:translateY(-1px); }
+.training-card strong { display:block; color:#65dfa7; margin-bottom:4px; }
+
+.lan-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.lan-grid label { display:flex; flex-direction:column; gap:8px; }
+.lan-grid input {
+  height:43px; border-radius:12px; border:1px solid rgba(255,255,255,.09);
+  background:rgba(255,255,255,.04); color:#effbf4; padding:0 13px;
+}
+.lan-status-box { display:flex; flex-direction:column; justify-content:center; }
+.lan-status-box .label { font-size:10px; color:#829a90; }
+#lanStatusText { margin-top:5px; font-size:15px; }
+.lan-actions { display:flex; gap:9px; margin-top:17px; }
+
+@media (max-width:1180px) {
+  .topbar { grid-template-columns:1fr auto; }
+  .brand { display:none; }
+  .scoreboard { grid-column:1; }
+  .header-actions { grid-column:2; }
+}
+@media (max-width:930px) {
+  .app-shell { padding:10px; gap:9px; }
+  .game-layout { grid-template-columns:58px minmax(0,1fr); }
+  .side-actions { display:none; }
+  .power-panel, .table-wrap { min-height:430px; }
+  .header-actions .select-wrap { display:none; }
+  .footer { grid-template-columns:1fr; }
+  .footer > :first-child, .footer > :last-child { display:none; }
+}
+@media (max-width:650px) {
+  .topbar { display:block; }
+  .header-actions { display:flex; flex-wrap:wrap; margin-top:10px; }
+  .scoreboard { min-height:64px; grid-template-columns:1fr; border-radius:14px; }
+  .player-card { padding:7px 8px; flex-direction:column; align-items:flex-start; }
+  .player-head { min-width: 0; }
+  .avatar { width:34px; height:34px; }
+  .game-layout { grid-template-columns:1fr; }
+  .power-panel {
+    order:2; min-height:120px; padding:8px 10px; flex-direction:row; border-radius:14px;
+  }
+  .power-label { writing-mode:horizontal-tb; }
+  .power-track { width:100%; height:12px; }
+  .power-fill { top:2px; bottom:2px; right:auto; width:0; height:auto !important; }
+  .spin-panel { margin:0 0 0 4px; padding:0 0 0 10px; border-top:0; border-left:1px solid rgba(255,255,255,.06); width:auto; }
+  .spin-title, .spin-reset { display:none; }
+  .spin-ball { width:62px; height:62px; }
+  .help-grid, .training-grid, .lan-grid { grid-template-columns:1fr; }
+  .perf-chip { display:none; }
+}
+
+
+/* v0.6.0 LAN simplification */
+.lan-grid.roomless {
+  grid-template-columns: 1fr 1fr;
+}
+.lan-grid label .input-help {
+  margin: 0;
+  color: #789187;
+  line-height: 1.55;
+  font-size: 10px;
+}
+.lan-status-wide {
+  grid-column: 1 / -1;
+}
+@media (max-width:650px) {
+  .lan-grid.roomless { grid-template-columns: 1fr; }
+  .lan-status-wide { grid-column: auto; }
+}
+
+
+/* v0.6.0 browser-only WebRTC P2P */
+.p2p-intro {
+  padding:14px 16px;
+  border:1px solid rgba(24,204,126,.16);
+  background:rgba(24,204,126,.055);
+  border-radius:14px;
+  margin-bottom:14px;
+}
+.p2p-intro strong { color:#dff9ec; font-size:13px; }
+.p2p-intro p { color:#93aca2; font-size:11px; line-height:1.65; margin:6px 0 0; }
+
+.p2p-mode-tabs { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
+.p2p-tab {
+  min-height:42px; border:1px solid rgba(255,255,255,.08); border-radius:12px;
+  background:rgba(255,255,255,.035); color:#a9bcb4; cursor:pointer;
+}
+.p2p-tab.active {
+  background:rgba(24,204,126,.13); border-color:rgba(24,204,126,.3); color:#effff6;
+}
+.p2p-pane { display:flex; flex-direction:column; gap:12px; }
+.p2p-pane > label, .code-label { display:flex; flex-direction:column; gap:7px; }
+.p2p-pane label > span, .code-label > span { color:#91aaa0; font-size:10px; }
+.p2p-pane input, .p2p-pane textarea {
+  width:100%; border:1px solid rgba(255,255,255,.09); background:rgba(255,255,255,.04);
+  color:#eefaf4; border-radius:12px; padding:11px 12px;
+}
+.p2p-pane textarea {
+  resize:vertical; min-height:96px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:10px; line-height:1.45;
+}
+.p2p-step {
+  display:grid; grid-template-columns:34px minmax(0,1fr) auto; gap:10px; align-items:center;
+  padding:12px; border:1px solid rgba(255,255,255,.06); background:rgba(255,255,255,.025);
+  border-radius:14px;
+}
+.step-no {
+  width:30px; height:30px; border-radius:50%; display:grid; place-items:center;
+  background:rgba(24,204,126,.15); color:#caffdf; font-size:11px; font-weight:800;
+}
+.p2p-step strong { font-size:12px; color:#effaf5; }
+.p2p-step p { margin:4px 0 0; color:#8ca69b; font-size:10px; line-height:1.5; }
+.inline-actions { display:flex; gap:8px; flex-wrap:wrap; }
+.compact { padding:8px 12px; font-size:10px; }
+.p2p-status { margin-top:14px; }
+.p2p-status.connected {
+  border-color:rgba(24,204,126,.28);
+  background:rgba(24,204,126,.07);
+}
+.p2p-status.failed {
+  border-color:rgba(255,98,96,.28);
+  background:rgba(255,98,96,.07);
+}
+@media (max-width:650px) {
+  .p2p-step { grid-template-columns:34px minmax(0,1fr); }
+  .p2p-step > button { grid-column:1 / -1; }
+}
+
+
+/* v0.7.0 dual multiplayer transport */
+.network-mode-tabs {
+  display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;
+}
+.network-mode-tab {
+  min-height:44px; border:1px solid rgba(255,255,255,.08); border-radius:12px;
+  background:rgba(255,255,255,.035); color:#9db2a9; cursor:pointer; font-weight:700;
+}
+.network-mode-tab.active {
+  background:rgba(24,204,126,.13); border-color:rgba(24,204,126,.32); color:#ecfff5;
+}
+.ip-intro code {
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:#d8f5e6;
+}
+.ip-connect-grid { display:grid; grid-template-columns:1.35fr .65fr; gap:12px; }
+.ip-connect-grid label { display:flex; flex-direction:column; gap:7px; }
+.ip-connect-grid label > span { font-size:10px; color:#91aaa0; }
+.ip-connect-grid input {
+  min-height:43px; border:1px solid rgba(255,255,255,.09);
+  background:rgba(255,255,255,.04); color:#eefaf4; border-radius:12px; padding:0 12px;
+}
+.ip-connect-grid small { color:#738d82; font-size:9px; line-height:1.5; }
+.ip-actions { display:flex; gap:8px; margin-top:14px; }
+@media (max-width:650px) {
+  .ip-connect-grid { grid-template-columns:1fr; }
+  .ip-actions { flex-direction:column; }
+}
+
+
+/* v0.7.0 Toy invite-link multiplayer */
+.network-mode-tabs.triple {
+  grid-template-columns: 1.15fr 1fr 1fr;
+}
+.link-connect-grid {
+  display:grid;
+  grid-template-columns:.7fr 1.3fr;
+  gap:12px;
+  margin-bottom:14px;
+}
+.link-connect-grid label,
+.invite-url-label {
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+}
+.link-connect-grid label > span,
+.invite-url-label > span {
+  color:#91aaa0;
+  font-size:10px;
+}
+.link-connect-grid input,
+.invite-url-label input {
+  min-height:43px;
+  width:100%;
+  border:1px solid rgba(255,255,255,.09);
+  background:rgba(255,255,255,.04);
+  color:#eefaf4;
+  border-radius:12px;
+  padding:0 12px;
+}
+.link-connect-grid small {
+  color:#738d82;
+  font-size:9px;
+  line-height:1.5;
+}
+.invite-hero {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:16px;
+  padding:16px;
+  margin:10px 0 12px;
+  border:1px solid rgba(24,204,126,.15);
+  background:
+    radial-gradient(circle at 15% 20%,rgba(24,204,126,.10),transparent 46%),
+    rgba(255,255,255,.025);
+  border-radius:16px;
+}
+.invite-hero strong,
+.auto-join-card strong {
+  display:block;
+  font-size:15px;
+  margin-top:3px;
+}
+.invite-hero p,
+.auto-join-card p,
+.signal-explain p {
+  margin:5px 0 0;
+  color:#8ea79c;
+  font-size:10px;
+  line-height:1.6;
+}
+.invite-kicker {
+  color:#64dfa8;
+  letter-spacing:.13em;
+  font-size:8px;
+  font-weight:800;
+}
+.room-chip {
+  display:inline-flex;
+  align-items:center;
+  min-height:32px;
+  padding:0 10px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.035);
+  color:#9fb5ab;
+  font:700 9px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+.auto-join-card {
+  margin-top:12px;
+  padding:16px;
+  border-radius:16px;
+  border:1px solid rgba(94,200,255,.18);
+  background:rgba(94,200,255,.055);
+}
+.signal-explain {
+  margin-top:14px;
+  padding:12px 14px;
+  border-radius:12px;
+  background:rgba(255,255,255,.025);
+  border:1px solid rgba(255,255,255,.055);
+}
+.signal-explain strong {
+  color:#c8dad2;
+  font-size:10px;
+}
+.link-intro {
+  border-color:rgba(94,200,255,.16);
+  background:rgba(94,200,255,.045);
+}
+
+@media (max-width:650px) {
+  .network-mode-tabs.triple {
+    grid-template-columns:1fr;
+  }
+  .link-connect-grid {
+    grid-template-columns:1fr;
+  }
+  .invite-hero {
+    align-items:stretch;
+    flex-direction:column;
+  }
+  .invite-hero .primary-btn {
+    width:100%;
+  }
+}
+
+
+/* v0.7.3 reliable room-code join for Bilibili Toy iframe */
+.join-room-card {
+  margin-top: 14px;
+  padding: 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(94,200,255,.16);
+  background: rgba(94,200,255,.045);
+}
+.join-room-card strong {
+  display: block;
+  margin-top: 3px;
+  font-size: 14px;
+  color: #eefaf5;
+}
+.join-room-card p {
+  margin: 5px 0 12px;
+  color: #8ea79c;
+  font-size: 10px;
+  line-height: 1.55;
+}
+.join-room-controls {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  gap: 8px;
+}
+.join-room-controls input {
+  min-height: 40px;
+  border: 1px solid rgba(255,255,255,.09);
+  background: rgba(255,255,255,.04);
+  color: #eefaf4;
+  border-radius: 11px;
+  padding: 0 12px;
+  text-transform: uppercase;
+  font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  letter-spacing: .08em;
+  font-weight: 700;
+}
+@media (max-width:650px) {
+  .join-room-controls { grid-template-columns: 1fr; }
+}
+
+
+/* v0.7.4 Cloudflare room relay */
+.signal-url-row {
+  display: none !important;
+}
+
+
+/* =========================================================
+ * v0.8.0 新增样式
+ * ======================================================= */
+
+/* 叫袋提示 */
+.call-pocket {
+  position:absolute; z-index:4; top:11px; left:50%; transform:translateX(-50%);
+  padding:7px 13px; border-radius:999px; font-size:10px; pointer-events:none;
+  border:1px solid rgba(90,255,170,.28); background:rgba(8,42,28,.78);
+  color:#8bf7c2; backdrop-filter:blur(9px);
+  animation:callPulse 1.6s ease-in-out infinite;
+}
+.ball-in-hand:not(.hidden) ~ .call-pocket:not(.hidden) { top:46px; }
+@keyframes callPulse {
+  0%,100% { box-shadow:0 0 0 0 rgba(90,255,170,.20); }
+  50%     { box-shadow:0 0 0 7px rgba(90,255,170,0); }
+}
+
+/* 击球记录 */
+.shot-log {
+  position:absolute; z-index:4; left:12px; top:11px; margin:0; padding:0;
+  list-style:none; display:flex; flex-direction:column; gap:4px;
+  max-width:36%; pointer-events:none;
+}
+.shot-log li {
+  font-size:10px; line-height:1.5; color:#9db3aa;
+  padding:5px 10px; border-radius:9px;
+  border:1px solid rgba(255,255,255,.06); background:rgba(4,16,12,.6);
+  backdrop-filter:blur(8px);
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  animation:logIn .28s ease;
+}
+.shot-log li.good { color:#7ef0b6; border-color:rgba(24,204,126,.2); }
+.shot-log li.warn { color:#ffcf7a; border-color:rgba(234,179,72,.22); }
+.shot-log li:nth-child(n+4) { opacity:.45; }
+@keyframes logIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+
+/* 规则选项 */
+.rule-options {
+  margin-top:16px; padding:15px; border-radius:14px;
+  border:1px solid rgba(255,255,255,.06); background:rgba(255,255,255,.035);
+}
+.rule-options > b { color:#67dfa8; font-size:12px; display:block; margin-bottom:10px; }
+.rule-toggle {
+  display:flex; align-items:center; gap:10px; padding:8px 0;
+  color:#cfe0d8; font-size:11px; cursor:pointer;
+}
+.rule-toggle input[type="checkbox"] { width:16px; height:16px; accent-color:#18cc7e; cursor:pointer; }
+.rule-toggle.wide { justify-content:space-between; }
+.rule-toggle.wide select {
+  height:34px; border-radius:10px; padding:0 10px;
+  border:1px solid rgba(255,255,255,.09); background:rgba(255,255,255,.04); color:#effbf4;
+}
+.rule-options .rule-note { margin-top:10px; }
+
+@media (max-width:650px) {
+  .shot-log { display:none; }
+  .call-pocket { max-width:86%; text-align:center; white-space:normal; border-radius:12px; }
+}
+
+/* =========================================================
+ * v0.8.1 联机面板: 三位房间号 + 局域网
+ * ======================================================= */
+.room-display { display:flex; align-items:center; gap:14px; }
+.room-display b {
+  min-width:92px; text-align:center;
+  font:800 30px/1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  letter-spacing:.18em; color:#ecfff5;
+  padding:10px 6px 10px 12px; border-radius:12px;
+  background:rgba(0,0,0,.28); border:1px solid rgba(24,204,126,.22);
+}
+.join-room-controls input#linkJoinRoomCode { font-size:18px; letter-spacing:.3em; }
+
+.lan-mode-banner, .lan-block {
+  margin-bottom:12px; padding:14px 16px; border-radius:16px;
+  border:1px solid rgba(24,204,126,.2); background:rgba(24,204,126,.06);
+}
+.lan-block { border-color:rgba(255,255,255,.07); background:rgba(255,255,255,.03); margin-top:12px; }
+.lan-mode-banner strong, .lan-block strong { display:block; margin-top:3px; font-size:14px; color:#eefaf5; }
+.lan-mode-banner p, .lan-block p { margin:5px 0 10px; color:#8ea79c; font-size:10px; line-height:1.6; }
+.lan-block code, .ip-intro code { color:#d8f5e6; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+.lan-url-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.lan-url-row code {
+  font:700 15px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:#8bf7c2;
+  padding:7px 11px; border-radius:10px; background:rgba(0,0,0,.28);
+}
+.lan-detect-row { display:flex; align-items:flex-end; gap:10px; }
+.lan-detect-row label { display:flex; flex-direction:column; gap:6px; }
+.lan-detect-row label span { font-size:10px; color:#91aaa0; }
+.lan-detect-row input {
+  width:90px; min-height:40px; border-radius:11px; padding:0 10px;
+  border:1px solid rgba(255,255,255,.09); background:rgba(255,255,255,.04); color:#eefaf4;
+}
+.lan-ip-list { list-style:none; margin:10px 0 0; padding:0; display:flex; flex-direction:column; gap:6px; }
+.lan-ip-list:empty { display:none; }
+.lan-ip-list li {
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  padding:8px 10px; border-radius:11px; background:rgba(0,0,0,.22);
+}
+.lan-ip-list li code { flex:1; min-width:180px; font:700 13px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; color:#8bf7c2; }
+.lan-ip-list li.empty { color:#e6b56c; font-size:10px; line-height:1.6; }
+@media (max-width:650px) {
+  .room-display { justify-content:space-between; }
+  .room-display b { font-size:24px; }
+}
+.lan-detect-row .primary-btn { min-height:40px; }
+
+/* =========================================================
+ * v0.8.4 记分牌: 对局比分 + 局内比分 + 开球方
+ * ========================================================= */
+.scoreboard { grid-template-columns:1fr 200px 1fr; }
+.player-name-row { display:flex; align-items:center; gap:6px; min-width:0; }
+.player-name-row .player-name { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:120px; }
+.break-chip {
+  font-style:normal; font-size:9px; font-weight:800; letter-spacing:.04em; line-height:1;
+  padding:3px 6px; border-radius:999px; color:#1b1300;
+  background:linear-gradient(180deg,#ffe07a,#e9b440); box-shadow:0 0 0 1px rgba(255,224,122,.35);
+}
+.break-chip.hidden { display:none; }
+.player-note { color:#bfe9d3; font-weight:700; }
+.score-center { gap:0; padding:8px 6px; }
+.score-center .series-label { margin:0 0 4px; font-size:9px; letter-spacing:.08em; color:#7f998e; }
+.score-center strong#scoreText {
+  font-size:32px; font-variant-numeric:tabular-nums; letter-spacing:.04em;
+  color:#fff; text-shadow:0 0 18px rgba(24,204,126,.28);
+}
+.score-center .frame-score {
+  margin:6px auto 0; padding:2px 9px; border-radius:999px; font-size:10px; color:#cfe6dc;
+  background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.06);
+  font-variant-numeric:tabular-nums;
+}
+.score-center .frame-score:empty { display:none; }
+.score-center .turn-text {
+  margin-top:5px; font-size:10px; color:#8ae3b7; max-width:100%;
+  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+}
+.score-center .mode-badges { margin-top:5px; }
+.shot-log .log-name { font-weight:800; color:#eefaf4; }
+.shot-log .log-name.p1 { color:#8cc4ff; }
+.shot-log .log-name.p2 { color:#c8a4ff; }
+.game-over .result-series { margin:-10px 0 18px; font-size:13px; color:#e8f7ef; font-variant-numeric:tabular-nums; }
+.game-over .result-series:empty { display:none; }
+@media (max-width:650px) {
+  .scoreboard { grid-template-columns:1fr; }
+  .score-center { order:-1; padding:6px; border-inline:0; border-bottom:1px solid rgba(255,255,255,.06); }
+  .score-center strong#scoreText { font-size:24px; }
+  .score-center .mode-badges { display:none; }
+}
+
+/* =========================================================
+ * v0.8.7 顶栏重排: [对局记录] [比分栏] [按钮]
+ *   对局记录从台面左上角移到比分栏同一行左侧, 不再遮挡台面;
+ *   低分辨率下玩家卡改为上下两段, 目标球 / 已进球横向一行排列。
+ * ========================================================= */
+.topbar {
+  grid-template-columns: minmax(200px,1fr) minmax(0,2.6fr) auto;
+  align-items: stretch;
+}
+.header-actions { align-self:center; flex-wrap:nowrap; }
+.icon-btn, .select-wrap, .select-wrap select { white-space:nowrap; }
+
+.event-panel {
+  min-width:0; min-height:108px; display:flex; flex-direction:column; gap:6px;
+  padding:9px 10px; border:1px solid var(--line); border-radius:20px; overflow:hidden;
+  background:linear-gradient(180deg,rgba(6,19,15,.95),rgba(7,16,14,.76));
+  box-shadow:0 18px 50px rgba(0,0,0,.23);
+}
+.event-head { display:flex; align-items:center; gap:7px; font-size:11px; color:#cfe6dc; flex:0 0 auto; }
+.event-head small { margin-left:auto; font-size:9px; }
+.event-mark {
+  width:20px; height:20px; border-radius:50%; display:grid; place-items:center; flex:0 0 auto;
+  font-size:10px; font-weight:800;
+  background:radial-gradient(circle at 34% 28%, #4d5654, #060807 60%);
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);
+}
+.event-panel .shot-log {
+  position:static; max-width:none; flex:1; min-height:0; overflow:hidden; gap:3px;
+  pointer-events:auto;
+}
+.event-panel .shot-log li {
+  font-size:11px; line-height:1.35; padding:3px 8px; border-radius:8px; flex:0 0 auto;
+  backdrop-filter:none; background:rgba(255,255,255,.035);
+}
+.event-panel .shot-log li:nth-child(n+4) { opacity:.5; }
+.event-panel .shot-log:empty::before { content:"暂无事件"; font-size:10px; color:#6f887e; padding:3px 2px; }
+
+/* 玩家卡: 中等宽度起改为上下两段, 球有整张卡的宽度可以横排 */
+.player-detail { min-width:0; }
+.mini-balls, .strip-balls { flex-wrap:nowrap; gap:3px; min-width:0; }
+.target-line strong { white-space:nowrap; }
+@media (max-width:1680px) {
+  .player-card { flex-direction:column; align-items:stretch; gap:6px; padding:9px 12px; }
+  .player-head { min-width:0; gap:8px; }
+  .avatar { width:32px; height:32px; font-size:10px; }
+  .player-meta { flex-direction:row; align-items:baseline; gap:8px; }
+  .player-detail { gap:4px; }
+  .target-line, .pocketed-line { min-height:20px; gap:6px; }
+  .mini-balls, .strip-balls { min-height:20px; }
+  .scoreboard .hud-ball { width:19px; height:19px; flex:0 0 auto; }
+  .scoreboard .hud-ball b { width:10px; height:10px; font-size:6.5px; }
+}
+@media (max-width:1180px) {
+  /* 旧规则会隐藏 .brand 并改成两列, 这里改回三列; 按钮在右侧侧栏里都有, 顶栏只留下拉框 */
+  .topbar { grid-template-columns:minmax(170px,1fr) minmax(0,2.8fr) auto; }
+  .scoreboard { grid-column:auto; grid-template-columns:1fr 170px 1fr; }
+  .header-actions { grid-column:auto; flex-direction:column; align-items:stretch; gap:6px; }
+  .header-actions .icon-btn { display:none; }
+  .header-actions .select-wrap { min-height:36px; }
+}
+@media (max-width:930px) {
+  /* 侧栏隐藏了: 比分栏独占一行, 第二行是对局记录 + 按钮 */
+  .topbar { grid-template-columns:minmax(0,1fr) auto; }
+  .scoreboard { grid-column:1 / -1; grid-row:1; }
+  .event-panel { grid-column:1; grid-row:2; min-height:0; }
+  .event-panel .shot-log li:nth-child(n+4) { display:none; }
+  .header-actions { grid-column:2; grid-row:2; flex-direction:row; flex-wrap:wrap; justify-content:flex-end; align-content:center; max-width:230px; }
+  .header-actions .icon-btn { display:inline-block; }
+}
+@media (max-width:650px) {
+  .topbar { display:flex; flex-direction:column; gap:8px; }
+  .scoreboard { grid-template-columns:1fr; }
+  .event-panel { order:2; border-radius:14px; padding:7px 9px; gap:4px; }
+  .event-panel .shot-log li:nth-child(n+3) { display:none; }
+  .event-panel .shot-log { display:flex; }
+  .header-actions { order:3; max-width:none; margin-top:0; justify-content:flex-start; }
+  .player-meta { flex-direction:column; gap:3px; }
+}
+
+/* =========================================================
+ * v0.8.7 布局固定: 不随内容变化, 不出现页面滚动条
+ *   1. 对局记录的列表脱离文档流(绝对定位), 条目再多也只在面板内部截断,
+ *      不会撑高顶栏或把比分栏挤宽;
+ *   2. 顶栏每一行高度固定;
+ *   3. 桌面端整页正好一屏高: 台面按剩余空间自适应缩放(画布内部等比留边)。
+ * ========================================================= */
+.event-panel { position:relative; min-height:0; height:100%; }
+.event-panel .shot-log {
+  position:absolute; left:10px; right:10px; top:37px; bottom:8px;
+  overflow:hidden; flex:none;
+}
+.event-panel .shot-log li { max-width:100%; min-width:0; }
+.scoreboard { min-height:0; height:100%; overflow:hidden; }
+.player-card, .score-center { min-height:0; overflow:hidden; }
+
+@media (min-width:651px) {
+  html, body { height:100%; overflow:hidden; }
+  .app-shell { height:100vh; height:100dvh; min-height:0; overflow:hidden; }
+  .topbar {
+    flex:0 0 auto;
+    grid-template-columns:minmax(0,1fr) minmax(0,2.6fr) auto;
+    grid-template-rows:138px;
+  }
+  .game-layout { flex:1 1 auto; min-height:0; grid-template-rows:minmax(0,1fr); }
+  .power-panel, .side-actions, .table-wrap { min-height:0; overflow:hidden; }
+  .table-wrap { display:block; }
+  #gameCanvas { position:absolute; inset:0; width:100%; height:100%; max-height:none; aspect-ratio:auto; }
+  .power-panel { justify-content:center; padding-top:12px; padding-bottom:12px; }
+  .power-track { flex:0 1 300px; height:auto; min-height:60px; }
+  .spin-panel { flex:0 0 auto; }
+  .side-actions { display:flex; flex-direction:column; justify-content:center; }
+  .action-btn { flex:0 1 78px; min-height:40px; }
+  .footer { flex:0 0 auto; }
+}
+@media (min-width:651px) and (max-height:760px) {
+  .action-btn em { display:none; }
+  .spin-ball { width:62px; height:62px; }
+  .spin-title { display:none; }
+}
+@media (min-width:1181px) {
+  .topbar { grid-template-columns:minmax(0,1fr) minmax(0,2.6fr) auto; }
+}
+@media (min-width:651px) and (max-width:1180px) {
+  .topbar { grid-template-columns:minmax(0,1fr) minmax(0,2.8fr) auto; }
+}
+@media (min-width:651px) and (max-width:930px) {
+  .topbar { grid-template-columns:minmax(0,1fr) auto; grid-template-rows:138px 104px; }
+  .event-panel { height:auto; }
+  .side-actions { display:none; }
+}
+@media (max-width:650px) {
+  /* 手机竖排本来就要上下滑, 这里只保证记录面板高度固定 */
+  .event-panel { height:78px; flex:0 0 78px; }
+  .event-panel .shot-log { left:9px; right:9px; top:31px; bottom:6px; }
+  .scoreboard { height:auto; }
+  .table-wrap { min-height:0; }
+}
+/* 记录条目固定行高: 面板里正好放下整数条, 不出现半截 */
+.event-panel .shot-log { gap:3px; }
+.event-panel .shot-log li { height:21px; line-height:15px; padding:3px 8px; }
+@media (max-width:650px) { .event-panel .shot-log li { height:20px; line-height:14px; } }
+/* 7 颗球全进时球可以略微缩小, 不会超出玩家卡 */
+.scoreboard .mini-balls, .scoreboard .strip-balls { overflow:hidden; }
+.scoreboard .hud-ball { flex:0 1 auto; min-width:13px; aspect-ratio:1; }
+@media (max-width:1680px) {
+  .scoreboard .hud-ball { width:19px; height:auto; flex:0 1 19px; }
+}
+@media (min-width:651px) and (max-width:930px) {
+  .topbar { grid-template-rows:138px 114px; }   /* 第二行正好放下 3 条记录 */
+  .spin-ball { width:44px; height:44px; }
+  .spin-reset, .spin-title { display:none; }
+}
+
+/* =========================================================
+ * v0.8.7 比分栏的目标球 / 已进球图标放大
+ *   标准 26px(原来 19–22px)。为了在 1280–1440 宽的屏幕上也放得下,
+ *   这个宽度段顶栏只保留两个下拉框(按钮右侧侧栏都有), 比分栏分到更多宽度。
+ *   空间实在不够时图标会等比缩小, 最小 18px, 始终一行。
+ * ========================================================= */
+.scoreboard .hud-ball {
+  width:26px; height:auto; aspect-ratio:1; flex:0 1 26px; min-width:18px;
+}
+.scoreboard .hud-ball b { width:50%; height:50%; font-size:8px; }
+.scoreboard .mini-balls, .scoreboard .strip-balls { gap:3px; min-height:26px; }
+.scoreboard .target-line, .scoreboard .pocketed-line { min-height:26px; }
+@media (max-width:1680px) {
+  .scoreboard .hud-ball { width:26px; height:auto; flex:0 1 26px; }
+  .player-card { gap:4px; padding:8px 12px; }
+  .player-detail { gap:3px; }
+  .target-line { min-height:18px; }
+}
+@media (min-width:1181px) and (max-width:1440px) {
+  .topbar { grid-template-columns:minmax(0,.8fr) minmax(0,2.9fr) auto; }
+  .scoreboard { grid-template-columns:1fr 160px 1fr; }
+  .header-actions { flex-direction:column; align-items:stretch; gap:6px; }
+  .header-actions .icon-btn { display:none; }
+  .header-actions .select-wrap { min-height:36px; }
+}
+@media (min-width:931px) and (max-width:1180px) {
+  .scoreboard { grid-template-columns:1fr 150px 1fr; }
+}
+
+/* v0.8.9: 桌面与球体双图层。底层只在尺寸/画质改变时重绘，
+   透明运动层每帧只绘制球、杆与短暂特效；所有指针事件仍交给原始游戏画布。 */
+#motionCanvas {
+  position:absolute; pointer-events:none; touch-action:none; z-index:1;
+  display:block; background:transparent; max-width:none; max-height:none;
+}

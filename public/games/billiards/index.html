@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><script src="/shared/realtime.js"></script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#071914" />
+  <meta name="description" content="HTML 台球游戏 v0.8.9 · 真实袋口几何 · WPA 8 球规则 · 几何 AI · 主机权威联机" />
+  <title>黑八台球 · 文艺淏</title><link rel="stylesheet" href="./site.css">
+  <link rel="icon" href="./assets/textures/icon-8ball.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <section class="event-panel" aria-label="对局记录">
+        <div class="event-head">
+          <span class="event-mark">8</span>
+          <b>对局记录</b>
+          <small class="version">v0.8.9</small>
+        </div>
+        <ul class="shot-log" id="shotLog" aria-live="polite"></ul>
+      </section>
+
+      <section class="scoreboard" aria-label="比分、目标球与已进球">
+        <div class="player-card active" id="p1Card">
+          <div class="player-head">
+            <div class="avatar host" id="p1Avatar">你</div>
+            <div class="player-meta">
+              <span class="player-name-row"><span class="player-name" id="p1Name">玩家</span><em class="break-chip" id="p1BreakChip">开球</em></span>
+              <span class="player-note" id="p1PocketedTitle">胜 0 局</span>
+            </div>
+          </div>
+          <div class="player-detail">
+            <div class="target-line">
+              <span>目标球</span>
+              <strong id="p1GroupText">开放球局</strong>
+            </div>
+            <div class="mini-balls" id="p1Balls"></div>
+            <div class="pocketed-line">
+              <span>已进球</span>
+              <div class="strip-balls" id="p1PocketedBalls"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="score-center">
+          <span class="series-label" id="seriesLabel">第 1 局 · 对局比分</span>
+          <strong id="scoreText">0 : 0</strong>
+          <span class="frame-score" id="frameScoreText">本局进球 0 : 0</span>
+          <span class="turn-text" id="turnText">玩家 开球</span>
+          <div class="mode-badges">
+            <span class="mode-pill active" id="soloModeBadge">单机</span>
+            <span class="mode-pill" id="practiceModeBadge">训练</span>
+            <span class="mode-pill" id="lanModeBadge">联机</span>
+          </div>
+        </div>
+
+        <div class="player-card" id="p2Card">
+          <div class="player-head">
+            <div class="avatar guest" id="p2Avatar">AI</div>
+            <div class="player-meta">
+              <span class="player-name-row"><span class="player-name" id="p2Name">AI</span><em class="break-chip hidden" id="p2BreakChip">开球</em></span>
+              <span class="player-note" id="p2PocketedTitle">胜 0 局</span>
+            </div>
+          </div>
+          <div class="player-detail">
+            <div class="target-line">
+              <span>目标球</span>
+              <strong id="p2GroupText">开放球局</strong>
+            </div>
+            <div class="mini-balls" id="p2Balls"></div>
+            <div class="pocketed-line">
+              <span>已进球</span>
+              <div class="strip-balls" id="p2PocketedBalls"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="header-actions">
+        <label class="select-wrap" title="AI 难度">
+          <span>AI</span>
+          <select id="aiDifficulty">
+            <option value="easy">休闲</option>
+            <option value="normal" selected>标准</option>
+            <option value="hard">高手</option>
+          </select>
+        </label>
+        <label class="select-wrap" title="渲染质量">
+          <span>画质</span>
+          <select id="qualitySelect">
+            <option value="auto" selected>自动</option>
+            <option value="performance">性能</option>
+            <option value="high">高清</option>
+          </select>
+        </label>
+        <button class="icon-btn" id="soloBtn" title="回到 AI 单机">AI</button>
+        <button class="icon-btn" id="practiceBtn" title="杆法训练">训练</button>
+        <button class="icon-btn" id="lanBtn" title="双人联机">联机</button>
+        <button class="icon-btn" id="soundBtn" title="声音开关">🔊</button>
+      </div>
+    </header>
+
+    <section class="game-layout">
+      <aside class="power-panel" aria-label="击球力度与旋转">
+        <span class="power-label">POWER</span>
+        <div class="power-track">
+          <div class="power-fill" id="powerFill"></div>
+          <div class="power-glow"></div>
+        </div>
+        <strong id="powerText">0%</strong>
+
+        <div class="spin-panel">
+          <span class="spin-title">击球点</span>
+          <button class="spin-ball" id="spinBall" title="拖动选择高杆、低杆、左右塞">
+            <span class="spin-cross x"></span>
+            <span class="spin-cross y"></span>
+            <i id="spinKnob"></i>
+          </button>
+          <small id="spinText">中心</small>
+          <button class="spin-reset" id="spinResetBtn">归中</button>
+        </div>
+      </aside>
+
+      <section class="table-wrap">
+        <canvas id="gameCanvas" aria-label="台球桌"></canvas>
+        <canvas id="motionCanvas" aria-hidden="true"></canvas>
+        <div class="status-pill" id="statusPill">移动鼠标瞄准 · 按住向后拖动蓄力</div>
+
+        <div class="perf-chip" id="perfChip">
+          <span id="fpsText">60 FPS</span>
+          <span class="perf-sep">·</span>
+          <span id="qualityText">AUTO</span>
+        </div>
+
+        <div class="ball-in-hand hidden" id="ballInHandTip">
+          自由球：点击合法位置摆放白球
+        </div>
+
+        <div class="call-pocket hidden" id="callPocketTip">
+          打 8 号球前，请先点击一个发光的袋口指定进球位置
+        </div>
+
+
+        <div class="confetti-layer" id="confettiLayer" aria-hidden="true"></div>
+
+        <div class="game-over hidden" id="gameOver">
+          <div class="trophy" id="resultIcon">🏆</div>
+          <h2 id="resultTitle">你赢了！</h2>
+          <p id="resultText">漂亮的一杆。</p>
+          <p class="result-series" id="resultSeries"></p>
+          <div class="overlay-actions">
+            <button class="primary-btn" id="playAgainBtn">下一局</button>
+            <button class="ghost-btn" id="closeOverlayBtn">关闭</button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side-actions">
+        <button class="action-btn" id="restartBtn"><span>↻</span><em>重新开始</em></button>
+        <button class="action-btn active" id="guideBtn"><span>⌖</span><em>瞄准辅助</em></button>
+        <button class="action-btn" id="soloSideBtn"><span>◎</span><em>AI单机</em></button>
+        <button class="action-btn" id="practiceSideBtn"><span>◈</span><em>杆法训练</em></button>
+        <button class="action-btn" id="lanSideBtn"><span>◉</span><em>双人联机</em></button>
+        <button class="action-btn" id="soundBtnSide"><span>♪</span><em>音效</em></button>
+        <button class="action-btn" id="musicBtnSide" title="背景音乐开关（M）"><span>♬</span><em>音乐</em></button>
+        <button class="action-btn" id="rulesBtn"><span>i</span><em>规则说明</em></button>
+      </aside>
+    </section>
+
+    <footer class="footer">
+      <div><span class="dot online"></span> 真实袋口几何 · WPA 8 球规则 · 叫袋打 8</div>
+      <div class="tips">拖动蓄力 · 方向键微调 · 空格出杆 · 右键取消 · G 辅助 · M 音乐 · R 重开</div>
+      <div>HTML5 Canvas · 固定步长物理 300Hz · v0.8.9</div>
+    </footer>
+  </main>
+
+  <dialog id="helpDialog">
+    <div class="dialog-head">
+      <div>
+        <span class="eyebrow">RULES &amp; CONTROLS</span>
+        <h2>玩法与规则</h2>
+      </div>
+      <button class="dialog-close" data-close-help aria-label="关闭">×</button>
+    </div>
+    <div class="dialog-body">
+      <div class="help-grid">
+        <article>
+          <b>击球</b>
+          <p>移动鼠标/手指瞄准，按住并向球杆后方拖动蓄力，松手出杆。轻点不会出杆；蓄力中点右键或按 Esc 可以取消。方向键微调角度（按住 Shift 更精细），空格出杆。</p>
+        </article>
+        <article>
+          <b>开球</b>
+          <p>白球可在开球线左侧的开球区内自由摆放。开球必须“进一颗球”或“至少 4 颗目标球碰库”，否则本次开球无效，重新摆球并换人开球。</p>
+        </article>
+        <article>
+          <b>分组</b>
+          <p>开球进球<strong>不</strong>决定分组，台面保持开放；开球之后第一次合法进球才确定自己打全色还是花色。开放球局下同一杆进了两组球，台面继续保持开放。</p>
+        </article>
+        <article>
+          <b>犯规</b>
+          <p>空杆、先碰对方球或 8 号球、白球落袋、球跳出台面、首碰后既没进球也没有任何球碰库，都算犯规。犯规后对手获得全台自由球；开球犯规则只能在开球区内摆球。</p>
+        </article>
+        <article>
+          <b>8 号球</b>
+          <p>必须先清完自己这组 7 颗球，再叫袋打进 8 号球才算赢。<strong>最后一颗组球和 8 号球同一杆落袋判负</strong>；8 号进了非指定袋口、或打进 8 号的同时犯规，同样判负。开球直接进 8 号不判负，摆回置球点继续。</p>
+        </article>
+        <article>
+          <b>杆法</b>
+          <p>左侧白球盘设置击球点：上=高杆（跟进）、下=低杆（回缩）、左右=加塞。杆法强度随击球力度缩放，加塞会改变吃库后的出射角，也会给目标球带来少量“抛球”偏移。</p>
+        </article>
+      </div>
+
+      <div class="rule-options">
+        <b>规则选项</b>
+        <label class="rule-toggle">
+          <input type="checkbox" id="ruleCallEight" checked />
+          <span>打 8 号球必须叫袋</span>
+        </label>
+        <label class="rule-toggle">
+          <input type="checkbox" id="ruleKitchen" checked />
+          <span>开球犯规后对手只能在开球区内摆球</span>
+        </label>
+        <label class="rule-toggle wide">
+          <span>开球直接进 8 号球</span>
+          <select id="ruleEightOnBreak">
+            <option value="respot" selected>摆回置球点继续</option>
+            <option value="rebreak">重新摆球重开</option>
+            <option value="lose">判开球方负</option>
+          </select>
+        </label>
+        <p class="rule-note">修改后从下一局（重新开始）生效。</p>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog id="practiceDialog">
+    <div class="dialog-head">
+      <div>
+        <span class="eyebrow">SHOT TRAINING</span>
+        <h2>杆法训练</h2>
+      </div>
+      <button class="dialog-close" data-close-practice aria-label="关闭">×</button>
+    </div>
+    <div class="dialog-body">
+      <div class="training-grid">
+        <button class="training-card" data-drill="break">
+          <strong>开球练习</strong>
+          <span>完整球堆，练习开球力度与白球停位。</span>
+        </button>
+        <button class="training-card" data-drill="straight">
+          <strong>直线球</strong>
+          <span>练习力量控制、高低杆跟停与直线进袋。</span>
+        </button>
+        <button class="training-card" data-drill="cut">
+          <strong>切球练习</strong>
+          <span>练习薄厚球、分离角与左右塞。</span>
+        </button>
+        <button class="training-card" data-drill="position">
+          <strong>走位练习</strong>
+          <span>连续三球，练习高低杆控制下一杆位置。</span>
+        </button>
+      </div>
+      <p class="rule-note">训练模式不判犯规、不换回合；白球落袋会自动摆回开球线，可随时切换练习布局。</p>
+    </div>
+  </dialog>
+
+  <dialog id="lanDialog">
+    <div class="dialog-head">
+      <div>
+        <span class="eyebrow">MULTIPLAYER · HOST AUTHORITATIVE</span>
+        <h2>和朋友一起玩</h2>
+      </div>
+      <button class="dialog-close" data-close-lan aria-label="关闭">×</button>
+    </div>
+
+    <div class="dialog-body">
+      <div class="network-mode-tabs">
+        <button class="network-mode-tab active" id="networkLinkTab">好友房间</button>
+        <button class="network-mode-tab" id="networkLanTab">局域网</button>
+      </div>
+
+      <section id="networkLinkPane">
+        <div class="lan-mode-banner hidden" id="lanModeBanner">
+          <span class="invite-kicker">LAN</span>
+          <strong>局域网模式</strong>
+          <p>本页由局域网服务托管，房间直接走本机中继，不经过公网。朋友用浏览器打开：</p>
+          <div class="lan-url-row">
+            <code id="lanBannerUrl">—</code>
+            <button class="ghost-btn compact" id="copyLanUrlBtn">复制地址</button>
+          </div>
+        </div>
+
+        <div class="link-connect-grid">
+          <label>
+            <span>你的名字</span>
+            <input id="linkPlayerName" type="text" value="Player" maxlength="18" />
+          </label>
+          <label class="signal-url-row">
+            <span>联机服务地址</span>
+            <input id="linkSignalUrl" type="text" value="https://8balls-signal.pages.dev" placeholder="https://8balls-signal.pages.dev" />
+          </label>
+        </div>
+
+        <div class="invite-hero">
+          <div>
+            <span class="invite-kicker">HOST</span>
+            <strong>创建房间</strong>
+            <p>得到一个 3 位数字房间号，报给朋友即可。</p>
+          </div>
+          <div class="room-display">
+            <b id="linkRoomBig">---</b>
+            <button class="primary-btn" id="linkCreateBtn">创建房间</button>
+          </div>
+        </div>
+
+        <div class="inline-actions">
+          <button class="primary-btn compact" id="copyInviteLinkBtn">复制邀请信息</button>
+          <button class="ghost-btn compact" id="copyRoomCodeBtn">复制房间号</button>
+          <span class="room-chip" id="linkRoomChip">ROOM ---</span>
+        </div>
+
+        <div class="join-room-card">
+          <div>
+            <span class="invite-kicker">GUEST</span>
+            <strong>加入房间</strong>
+            <p>输入主机报给你的 3 位房间号。</p>
+          </div>
+          <div class="join-room-controls">
+            <input id="linkJoinRoomCode" type="text" inputmode="numeric" maxlength="12" autocomplete="off" placeholder="例如 427" />
+            <button class="primary-btn compact" id="linkJoinRoomBtn">加入房间</button>
+          </div>
+        </div>
+
+        <div class="auto-join-card hidden" id="linkJoinCard">
+          <span class="invite-kicker">JOIN</span>
+          <strong>正在加入房间…</strong>
+          <p id="linkJoinText">正在连接联机服务。</p>
+        </div>
+      </section>
+
+      <section id="networkLanPane" class="hidden">
+        <div class="p2p-intro ip-intro">
+          <strong>同一 Wi-Fi / 路由器下对战，不走公网</strong>
+          <p>浏览器出于隐私限制读不到本机 IPv4，所以由主机上的小服务来读，并由它托管游戏页面。
+          主机双击 <code>server/start_server.bat</code>（需要安装 Node.js），然后两边都用它打印的地址打开游戏，在“好友房间”里用 3 位房间号对战。</p>
+        </div>
+
+        <div class="lan-block">
+          <span class="invite-kicker">HOST</span>
+          <strong>我是主机：检测本机服务</strong>
+          <p>服务启动后点检测，这里会列出本机的局域网地址。</p>
+          <div class="lan-detect-row">
+            <label><span>端口</span><input id="lanPortInput" type="text" inputmode="numeric" value="8765" maxlength="5" /></label>
+            <button class="primary-btn compact" id="lanDetectBtn">检测本机服务</button>
+          </div>
+          <ul class="lan-ip-list" id="lanIpList"></ul>
+        </div>
+
+        <div class="lan-block">
+          <span class="invite-kicker">GUEST</span>
+          <strong>我来加入：输入主机地址</strong>
+          <p>填主机屏幕上显示的地址，例如 <code>192.168.1.25</code>，会在新页面打开主机托管的游戏。</p>
+          <div class="join-room-controls">
+            <input id="lanHostInput" type="text" autocomplete="off" placeholder="192.168.1.25 或 192.168.1.25:8765" />
+            <button class="primary-btn compact" id="lanOpenBtn">打开</button>
+          </div>
+        </div>
+      </section>
+
+      <div class="lan-status-box p2p-status">
+        <span class="label">连接状态</span>
+        <strong id="lanStatusText">未连接</strong>
+        <small id="lanRoomInfo">可选择好友房间、手动 P2P 或 IP 直连。</small>
+      </div>
+
+      <div class="lan-actions">
+        <button class="ghost-btn" id="disconnectLanBtn">断开连接</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script src="./network-config.js"></script>
+  <script src="./src/core.js"></script>
+  <script src="./src/match.js"></script>
+  <script src="./src/ai.js"></script>
+  <script src="./src/rolling.js"></script>
+  <script src="./src/game.js"></script>
+</body>
+</html>

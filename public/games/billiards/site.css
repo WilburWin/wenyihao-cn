@@ -1,0 +1,3 @@
+/* The personal site uses its own room service; legacy setup controls stay hidden. */
+#networkLanTab,#networkLanPane{display:none!important}
+.network-field:has(#linkSignalUrl),label:has(#linkSignalUrl){display:none!important}

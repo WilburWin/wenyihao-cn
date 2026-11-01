@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#08131d">
+<meta name="description" content="星弈围棋：19 路人机、联机、棋谱练习与本地双人。">
+<title>星弈 · 围棋棋室</title><link rel="stylesheet" href="./style.css">
+</head><body>
+<div class="scene-grain"></div><div class="scene-vignette"></div>
+<div class="app-shell">
+  <header class="topbar">
+    <div class="brand"><span class="brand-seal">弈</span><span><b>星弈</b><small>STAR GO · 19 LINES</small></span></div>
+    <div class="top-phrase"><span class="spark">✦</span> 山月相伴，落子有声 <span class="spark">✦</span></div>
+    <div class="top-actions"><span class="connection"><i></i><span id="netStatus">本地棋室就绪</span></span><button id="soundBtn" class="top-button" title="切换音效" aria-label="切换音效">♫</button><label class="volume-control" for="volumeSlider">音量 <input id="volumeSlider" type="range" min="0" max="100" value="70" aria-label="落子音量"><output id="volumeValue" for="volumeSlider">70%</output></label><button id="historyBtn" class="top-button history-trigger">对局记录 <span id="historyCount">0</span></button></div>
+  </header>
+  <div class="workspace">
+    <main class="board-stage">
+      <div class="board-zone"><div class="board-frame"><div class="frame-inlay"></div><div id="board" class="board" role="grid" aria-label="19 路围棋棋盘"></div><span class="frame-stamp">星弈 · XIX</span></div></div>
+      <div class="board-bottom"><div class="board-status"><span class="pulse"></span><span id="gameHint" aria-live="polite">选择模式后开始对弈</span></div><div class="board-tools"><span id="moveCounter" class="move-counter">第 0 手</span><button id="passBtn" class="line-button" disabled>停一手 <span>↗</span></button></div></div>
+    </main>
+    <div class="right-column">
+      <div class="board-head"><div><span class="eyebrow" id="boardEyebrow">THE QUIET MATCH</span><h1 id="boardTitle">黑白之间，落子成局。</h1></div><div class="board-head-meta"><span class="meta-mark">✳</span><span>标准十九路<br><small>361 INTERSECTIONS</small></span></div></div>
+    <nav class="mode-rail" aria-label="对弈方式">
+      <div class="mode-list">
+        <button class="mode active" data-mode="ai"><span class="mode-glyph">✧</span><span class="mode-copy"><b>AI 对弈</b><small>独弈亦是修行</small></span><span class="mode-arrow">↗</span></button>
+        <button class="mode" data-mode="online"><span class="mode-glyph">⌁</span><span class="mode-copy"><b>联机对弈</b><small>隔屏共下一局</small></span><span class="mode-arrow">↗</span></button>
+        <button class="mode" data-mode="study"><span class="mode-glyph">文</span><span class="mode-copy"><b>棋谱练习</b><small>循经典而知新</small></span><span class="mode-arrow">↗</span></button>
+        <button class="mode" data-mode="local"><span class="mode-glyph">◐</span><span class="mode-copy"><b>本地双人</b><small>对坐执黑与白</small></span><span class="mode-arrow">↗</span></button>
+      </div>
+    </nav>
+    <aside class="control-panel">
+      <div id="setupPanel" class="panel-inner">
+        <div class="panel-eyebrow"><span id="modeEnglish">SOLO PRACTICE</span><i>01 / 04</i></div><h2 id="setupTitle">与 AI 对弈</h2><p id="setupDesc" class="muted">让棋盘慢慢展开，练习判断每一手。</p>
+        <div class="intro-card"><span class="intro-icon" id="introIcon">✧</span><div><b id="introTitle">人机练习</b><small id="introText">浏览器内运行的入门级启发式 AI</small></div></div>
+        <div id="onlineSetup" class="mode-detail hidden"><label>棋手名<input id="playerName" maxlength="18" value="棋手" autocomplete="nickname"></label><div class="join-box"><input id="roomCode" maxlength="3" inputmode="numeric" pattern="[0-9]{3}" placeholder="输入三位房间码"><button id="joinRoom" class="small-button">加入房间</button></div><button id="createRoom" class="solid-button">创建新房间 <span>↗</span></button><button id="resumeRoom" class="subtle-button hidden">恢复上次房间 →</button><p id="roomNotice" class="notice" aria-live="polite"></p></div>
+        <div id="studySetup" class="mode-detail hidden"><div id="kifuList" class="kifu-list"></div><label class="import-label" for="sgfInput">＋ 导入本机 SGF 棋谱</label><input id="sgfInput" class="visually-hidden" type="file" accept=".sgf,text/plain"><p class="micro">棋谱仅在本机解析，选择后可逐手练习。</p></div>
+        <button id="startBtn" class="solid-button setup-start">开始对弈 <span>↗</span></button>
+        <div class="panel-note"><i>✳</i><span>19 路 · 提子 · 简单劫 · 停着</span></div>
+      </div>
+
+      <div id="activePanel" class="panel-inner hidden">
+        <div class="panel-eyebrow"><span id="activeEyebrow">MATCH IN PROGRESS</span><i id="roundLabel">19 × 19</i></div><h2 id="gameTitle">对局进行中</h2><p id="activeSubtitle" class="muted">执黑先行，静候一手好棋。</p>
+        <div id="playerArea" class="players"><div class="player-row"><span class="player-stone black"></span><div><small>BLACK · 先手</small><b id="blackName">你</b></div><span class="cap">提子 <strong id="blackCaptures">0</strong></span></div><div class="player-row"><span class="player-stone white"></span><div><small>WHITE · 后手</small><b id="whiteName">星弈 AI</b></div><span class="cap">提子 <strong id="whiteCaptures">0</strong></span></div></div>
+        <div class="turn-row"><span id="turnDot" class="player-stone black"></span><div><small>当前行棋</small><b id="turnName">黑方 · 你的回合</b></div><span class="turn-star">✧</span></div>
+        <div id="onlineRoom" class="room-share hidden"><div><small>ROOM CODE</small><b id="roomCodeDisplay">---</b></div><button id="copyRoom" class="small-button">复制房间码</button></div>
+        <div id="rematchNotice" class="rematch-notice hidden"><span id="rematchText"></span><button id="declineBtn" class="subtle-button hidden">婉拒</button></div>
+        <div id="studyControls" class="study-controls hidden"><div class="study-progress"><b id="studyName">棋谱练习</b><span id="studyProgress">0 / 60</span></div><div class="progress-track"><i id="progressFill"></i></div><p id="studyFeedback" aria-live="polite">试着猜出下一手。</p><div id="studyLesson" class="study-lesson"></div><div class="step-actions"><button id="prevMove" class="line-button">← 上一手</button><button id="hintMove" class="line-button">提示</button><button id="nextMove" class="line-button">下一手 →</button></div><a id="studySource" class="source-link hidden" href="#" target="_blank" rel="noopener noreferrer">查看教材原文 ↗</a></div>
+        <div id="liveActions" class="live-actions"><button id="resignBtn" class="outline-danger">认输</button><button id="newGameBtn" class="solid-button">重新开始 <span>↻</span></button></div>
+        <button id="exitBtn" class="subtle-button exit-button">返回模式选择</button>
+        <div class="compact-history"><div><span>最近对局</span><button id="allHistoryBtn">查看全部 →</button></div><div id="recentHistory" class="recent-list"></div></div>
+      </div>
+    </aside>
+    </div>
+  </div>
+  <footer class="bottomline"><span>落子无悔 · 静待花开</span><span>STAR GO / 2026 <b class="app-version">v2.5</b></span></footer>
+</div>
+<div id="resultModal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="resultHeadline"><div class="result-dialog"><span class="dialog-kicker">THE GAME IS FINISHED</span><div class="result-symbol">✦</div><h2 id="resultHeadline">本局结束</h2><p id="resultSummary"></p><div class="score-grid"><div><small>黑方</small><strong id="resultBlack">—</strong></div><div><small>白方 · 含贴目</small><strong id="resultWhite">—</strong></div><div><small>总手数</small><strong id="resultMoves">0</strong></div></div><p id="resultMethod" class="result-method"></p><div class="result-actions"><button id="resultRematch" class="solid-button">再来一局 <span>↻</span></button><button id="resultClose" class="line-button">查看棋盘</button></div></div></div>
+<div id="historyModal" class="modal-layer hidden" role="dialog" aria-modal="true" aria-labelledby="historyHeading"><div class="history-dialog"><div class="dialog-header"><div><span class="dialog-kicker">MY MATCHES</span><h2 id="historyHeading">对局记录</h2></div><button id="historyClose" class="close-button" aria-label="关闭">×</button></div><div id="historyList" class="history-list"></div><div class="pager"><button id="historyPrev">← 上一页</button><span id="historyPage">1 / 1</span><button id="historyNext">下一页 →</button></div><p class="history-footnote">记录保存在当前浏览器；可复盘或导出 SGF。</p></div></div>
+<div id="toast" class="toast hidden" role="status"></div>
+<script src="./config.js"></script><script src="./go-core.js"></script><script src="./kifu.js"></script><script src="./app.js"></script>
+</body></html>

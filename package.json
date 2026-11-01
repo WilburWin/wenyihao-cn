@@ -1,0 +1,5 @@
+{
+  "name": "wenyihao-cn", "private": true, "type": "module",
+  "scripts": { "dev": "wrangler dev", "deploy": "wrangler deploy", "test": "node --test test/*.test.js", "check": "node scripts/check.mjs" },
+  "devDependencies": { "wrangler": "^4.0.0" }
+}

@@ -1,0 +1,6 @@
+const games=[
+ {id:'go',name:'星弈围棋',en:'Go',meta:'2 人联机 · 人机练习 · 棋谱研习',description:'黑白之间，慢慢展开一局。',english:'Find your next move on a board of black and white.',cover:'<div class="cover go"><span class="board" aria-hidden="true">● ○</span></div>'},
+ {id:'mahjong',name:'雀神麻将',en:'Mahjong',meta:'1–4 人 · 电脑补位 · 多种玩法',description:'好友同桌，三张牌之间等一个好手气。',english:'Gather around the table with friends.',cover:'<div class="cover"><img src="/games/mahjong/queshen-cover.png" alt="翡翠色麻将牌桌" loading="lazy"></div>'},
+ {id:'billiards',name:'黑八台球',en:'8-ball billiards',meta:'2 人联机 · 人机对战 · 自由练习',description:'看准角度，让下一颗球落袋。',english:'Line up your shot and make it count.',cover:'<div class="cover billiards"><div class="ball" aria-hidden="true"><span>8</span></div></div>'}
+];
+document.getElementById('games').innerHTML=games.map(g=>`<a class="game" href="/games/${g.id}/">${g.cover}<div class="content"><h2>${g.name}<span class="en" lang="en">${g.en}</span></h2><p>${g.description}<span class="en" lang="en">${g.english}</span></p><span class="meta">${g.meta}</span><span class="play">开始游戏 <small lang="en">Play →</small></span></div></a>`).join('');
