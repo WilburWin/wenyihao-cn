@@ -1,64 +1,164 @@
 # 文艺淏 · wenyihao.cn
 
-个人网站与三个 HTML 游戏.首页及游戏大厅采用中文主文案、较小英文辅助文案.其他内容区后续扩展.
+文艺淏的个人网站，展示个人介绍、照片与 HTML 游戏。中文为主，英文辅助信息使用较小字号；学术论文、GitHub 项目和 B 站视频板块待补充。
+
+- 网站：https://wenyihao.cn
+- 仓库：https://github.com/WilburWin/wenyihao-cn
+- 部署：Cloudflare Workers Builds 连接 GitHub，生产分支为 `main`。
+
+## 页面与功能
+
+| 页面 | 地址 | 功能 |
+| --- | --- | --- |
+| 首页 | `/` | 个人介绍、叠放照片轮播、游戏入口 |
+| 照片 | `/photos/` | 原比例瀑布流、分类筛选、场景搜索、大图预览 |
+| 游戏大厅 | `/games/` | 四个游戏入口，按屏幕宽度调整列数 |
+| 星弈围棋 | `/games/go/` | 人机、双人联机、本地双人、棋谱练习 |
+| 雀神麻将 | `/games/mahjong/` | 单机与最多四人联机，空位由电脑补齐 |
+| 黑八台球 | `/games/billiards/` | 人机、训练、双人联机与网络 RTT 显示 |
+| 猫咪在哪里 | `/games/catwhere/` | 单人逻辑解谜、三种难度、随机关卡 |
+
+首页照片默认每秒切换，边缘渐隐、错位叠放；点击两侧透明区域切换，点击中间进入照片页，手机支持左右滑动。鼠标悬停、键盘聚焦和页面进入后台时停止自动切换；系统启用减少动态效果时不自动播放。
+
+围棋宽屏布局为中央棋盘、左侧模式、右侧操作；找猫宽屏布局为中央网格、左侧规则、右侧设置。窄屏自适应排列，内容较多时允许滚动。麻将保留原有布局。
 
 ## 本地运行
 
-需要 Node.js 22 或更新版本.
+需要 Node.js 22 或更新版本及 npm。
 
 ```sh
 npm ci
 npm run dev
 ```
 
-打开终端显示的本地网址.游戏分别位于 `/games/go/`、`/games/mahjong/`、`/games/billiards/`,必须通过服务器访问,不能双击 HTML.
+打开终端显示的网址，通常为 `http://localhost:8787/`。联机游戏需要通过 Wrangler 提供的服务运行，不能用双击 HTML 或普通静态服务器代替。仅本地设备可访问的地址不能用于朋友跨网络加入。
 
-## Cloudflare 与 GitHub 自动部署
+## GitHub 自动部署
 
-使用 **Workers + Static Assets + Durable Objects**,不是原来的 Pages/D1 中继.整个仓库一个 Worker 项目,无需额外中继域名和数据库.
+项目使用 **Workers + Static Assets + Durable Objects**。生产静态资源目录为 `public/`，Worker 入口为 `worker/index.js`，配置位于 `wrangler.jsonc`。旧 Pages/D1 中继不再使用。
 
-1. 将此 Git 仓库推送到你自己的 GitHub 仓库.
-2. 在 Cloudflare Workers 创建应用,连接该仓库,启用 Workers Builds.
-3. 根目录使用仓库根目录;依赖通过 `npm ci` 安装;构建命令 `npm run check`;部署命令 `npx wrangler deploy`.选择 Node.js 22 或更新版本.
-4. 首次部署会通过 `wrangler.jsonc` 的迁移创建 SQLite Durable Objects 命名空间.
-5. 在 Worker 的域与路由中添加自定义域名 `wenyihao.cn`.如果已有同名 DNS/Pages 绑定,先核对并迁移,不能同时绑定两个应用.
-6. 后续向生产分支推送提交,由 Cloudflare 自动部署.
+在 Cloudflare 控制台进入对应 Worker 的 **设置 → 构建（Settings → Build）**，核对：
 
-手动部署可运行 `npx wrangler login` 后执行 `npm run deploy`.本仓库未包含账号凭据、远端仓库地址和正式域名绑定,尚未发布到公网.
+| 设置 | 值 |
+| --- | --- |
+| Git 仓库 | `WilburWin/wenyihao-cn` |
+| 生产分支 | `main` |
+| 根目录 | 仓库根目录 |
+| 构建命令 | `npm run check` |
+| 部署命令 | `npx wrangler deploy` |
+| Node.js | 22 或更新版本 |
 
-## 内容维护
+依赖通过锁文件安装。首次部署由配置中的迁移创建 SQLite Durable Objects 命名空间；自定义域名 `wenyihao.cn` 在 Cloudflare 控制台绑定。
 
-### 照片
+更新时提交并推送到 `main`，然后在构建记录中确认最新提交号及部署成功状态。若页面没有更新：
 
-照片页 `/photos/` 展示 `wenyihao/照片/` 中的图片，首页介绍区轮播手动指定的 4 张精选，点击进入照片页；正面照原图不发布。新增、替换照片后，在本机运行 `python scripts/build-photos.py`（需要 Pillow），将源照片、生成的 `public/photos/images/` 和 `public/photos/data.json` 一并提交。Cloudflare 无需安装 Python，直接部署已生成的 WebP 文件。脚本不会修改原图，也不会发布提示词 TXT 或正面照原图；网页版本移除元数据并处理 EXIF 方向。精选顺序在脚本的 `featured` 列表中修改，显示标题使用源文件名。删除照片时重新生成清单即可取消展示。
+1. 对照 GitHub 最新提交号与 Cloudflare 构建对应提交号，确认没有查看或重试旧提交的构建。
+2. 没有新构建时，检查 Git 连接、生产分支和自动构建配置。
+3. 构建失败时查看日志；成功时核对域名绑定的 Worker 和生产版本，再强制刷新浏览器。
 
-照片大图支持左右按钮、键盘方向键和手机左右滑动；Esc 或关闭按钮返回列表。风格写真标注为包含图像编辑作品。
+需要手动部署时：
 
-- `public/index.html`:首页、个人介绍、其他板块预留.
-- `public/site.js`:手动排列的游戏卡片.
-- `public/style.css`:网站样式.
-- `public/games/`:三个游戏的运行版本.
-- `public/shared/realtime.js`:同源 WebSocket 适配器.
-- `worker/index.js`:各游戏隔离的房间服务.
-- `GAME/refs/`:原始参考代码,保留不改,不会部署为静态资源.
+```sh
+npx wrangler login
+npm run deploy
+```
 
-## 联机设计及限制
+## 照片维护
 
-每个游戏、每个三位房间号对应一个 Durable Object.浏览器保持 WebSocket 长连接,事件到达立即唤醒等待中的客户端,不再经过 HTTP 定时轮询或 D1 查询.客户端内的 `/api/poll` 是兼容原游戏流程的函数调用,经适配器转成 WebSocket 消息;并非发出 HTTP 轮询请求.空闲时每秒返回一次在线状态.
+源图片位于 `wenyihao/照片/`。网站不展示文件名为 `正面照` 的原图，源文件仍保留在本地目录；提示词 TXT 不参与照片生成清单。
 
-房间首次放置请求 `apac` 区域.Cloudflare 的区域提示不是地域保证,域名托管也不会自动带来大陆境内节点.此设计消除旧方案的应用层等待,无法保证大陆各运营商的公网 RTT.上线后需要电信、联通、移动不同网络的跨设备试打;本地 RTT 不代表公网质量.
+新增或替换图片后，在本机执行：
 
-游戏继续使用原本的房主浏览器裁决机制,保留现有玩法与台球预测逻辑.麻将支持定向手牌、检查点与断线接管;双人游戏房主断线时需恢复连接或重新建房.页面退出关闭连接,服务端以连接状态判定在线.房间检查点按操作保存,突发断电可能回退未持久化的最后操作.活跃连接使用普通 WebSocket API,未实现休眠计费优化;应观察 Cloudflare 用量,不承诺零费用.
+```sh
+python -m pip install Pillow
+python scripts/build-photos.py
+```
 
-此版本适合个人与朋友体验,不是面向陌生流量的竞技平台:房主可查看客户端状态,三位房间号可猜测,暂未增加邀请密码、滥用流量限制与完整服务端规则裁决.不要将房间号作为访问机密.
+脚本生成两种 WebP：最长边 640 像素的缩略图和最长边 1920 像素的大图，不放大小尺寸原图。生成时应用 EXIF 方向并省略源元数据，不修改原照片。
+
+将生成的 `public/photos/images/` 和 `public/photos/data.json` 一并提交，Cloudflare 构建无需安装 Python。原始文件是否提交到公开仓库由维护者自行决定；不在 `public/` 中只代表不会作为网站静态资源发布，不代表不会通过公开 Git 仓库被下载。
+
+| 修改内容 | 文件 |
+| --- | --- |
+| 首页精选及轮播顺序 | `scripts/build-photos.py` 的 `featured` 列表，修改后重新生成 |
+| 展示标题、场景描述、分类 | `public/photos/gallery.js` 的 `catalog` |
+| 首页轮播间隔与交互 | `public/photos/carousel.js` |
+| 照片页布局与大图样式 | `public/photos/photos.css` |
+| 照片生成与文件名配置 | `scripts/build-photos.py` |
+
+删除源照片后重新生成，清单会取消展示。脚本不会自动清理所有历史 WebP 文件；若需撤下图片的直接访问地址，还要移除对应的已生成文件。正面照的两个已生成版本会由脚本明确移除。
+
+照片页使用单独的展示标题，不修改源文件名。支持分类与搜索组合筛选、空结果提示、大图方向键与触摸切换、Esc 关闭和打开图片。页面注明包含编辑写真。
+
+`wenyihao/照片/风格写真/` 中保存风格提示词。网站运行和照片压缩均不需要图片生成 API；如另行使用图片 API，密钥只在本机环境变量中配置，不写入代码或提交 Git。
+
+## 项目目录
+
+```text
+public/
+  index.html                 首页
+  style.css                  全站与首页样式
+  site.js                    游戏卡片数据及顺序
+  photos/                    照片清单、WebP、照片页和轮播
+  games/
+    go/                      围棋
+    mahjong/                 麻将
+    billiards/               台球
+    catwhere/                找猫
+  shared/realtime.js         同源 WebSocket 兼容层
+worker/index.js              房间服务及静态资源入口
+scripts/                     照片生成、代码检查与浏览器检查
+test/                        房间服务测试
+GAME/refs/                   原始游戏参考代码
+GAME/legacy-support/         旧中继和局域网服务参考
+wenyihao/照片/               源照片与风格提示词
+docs/                        设计记录
+wrangler.jsonc               Cloudflare 配置
+```
+
+`GAME/`、源照片和提示词不属于生产静态目录。运行版本的修改应落在 `public/games/`；围棋与找猫新增的全屏布局文件独立于原样式，台球额外使用 `latency.js` 显示网络状态。
+
+## 联机方式与延迟
+
+围棋、麻将和台球以游戏名与三位房间号隔离，每个房间对应一个 Durable Object。浏览器使用同源 WebSocket 长连接；原游戏调用的 `/api/poll` 经兼容层转成 WebSocket 消息，空闲时约每秒返回在线状态，消息到达会唤醒等待中的客户端，不经过 D1 数据库查询。找猫是单机游戏，不连接房间服务。
+
+房间请求 `apac` 区域放置，但这是提示，不保证具体数据中心。Cloudflare 域名托管和付费套餐本身不保证大陆低延迟；公网表现取决于运营商、区域与实际路由。本地测试结果不能代表公网质量。
+
+台球独立显示的网络 RTT 来自 WebSocket ping，不含等待游戏事件的时间。未连通时显示未连接；高 RTT 不一定等于本地击球同等程度的卡顿，台球保留了本地预测机制。
+
+当前规则继续由房主浏览器裁决。麻将支持定向手牌、检查点与房主断线后接管；双人游戏断线恢复仍受当前客户端会话状态限制。活跃连接使用普通 WebSocket，尚未实现休眠计费优化，需观察 Cloudflare 用量。
+
+本项目面向个人与朋友体验。三位房间号可猜测，房主可访问客户端对局状态；尚未实现邀请密码、完整服务端规则裁决及完善的流量限制。
 
 ## 检查
 
 ```sh
-npm test
 npm run check
+npm test
+node --test public/games/catwhere/tests/engine.test.cjs
 ```
 
-现有麻将与台球测试分别保留在各自目录.麻将测试需要从 `public/games/mahjong` 运行 `node test-v30-rules.mjs`.台球目录使用 CommonJS,与网站的 ES modules 配置隔离.
+麻将规则测试需要在游戏目录运行：
 
-`scripts/browser-smoke.mjs` 使用 Playwright 和本机 Chrome,验证首页、手机布局、围棋双人落子、麻将四人开局及台球双人入房.先启动本地服务,安装 Playwright 后运行;可使用 `PLAYWRIGHT_MODULE` 指向现有 Playwright 模块.截图输出到不提交的 `artifacts/`.
+```sh
+cd public/games/mahjong
+node test-v30-rules.mjs
+```
+
+台球回归测试从仓库根目录运行：
+
+```sh
+node public/games/billiards/test/core.test.js
+node public/games/billiards/test/match.test.js
+node public/games/billiards/test/rolling.test.js
+node public/games/billiards/test/render.test.js
+node public/games/billiards/test/skid.test.js
+```
+
+`scripts/browser-smoke.mjs` 是基础联机冒烟检查，使用 Playwright 和本机 Chrome，需要先启动本地服务。可通过 `PLAYWRIGHT_MODULE` 指定现有 Playwright 模块路径。它覆盖首页与手机布局、围棋双人落子、麻将四人开局和台球双人入房，不替代所有照片、全屏布局或公网网络测试。截图保存到被 Git 忽略的 `artifacts/`。
+
+## 敏感文件扫描告警
+
+`GET /.env` 等请求通常表示有人尝试探测敏感文件，告警本身不能证明文件泄露。应结合当时的响应状态与内容判断；`fetch` 调用也可能只是本项目的 `env.ASSETS.fetch(request)` 静态资源读取。
+
+`.gitignore` 已忽略 `.env*` 与 `.dev.vars`（保留 `.env.example` 例外）。不要把密钥放入 `public/`；忽略规则不会移除已经被 Git 跟踪的文件。若确认响应或仓库历史中泄露过真实密钥，应撤销密钥并处理泄露内容。
