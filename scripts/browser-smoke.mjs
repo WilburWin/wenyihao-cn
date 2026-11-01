@@ -8,7 +8,7 @@ const errors=[], requests=[];
 async function page(path){const ctx=await browser.newContext();const p=await ctx.newPage();p.on('pageerror',e=>errors.push(e.message));p.on('request',r=>{if(r.url().includes('pages.dev'))requests.push(r.url());});await p.goto(`http://127.0.0.1:8787${path}`);return p;}
 try{
  await mkdir('artifacts',{recursive:true});
- const home=await page('/');assert.equal(await home.locator('.game').count(),3);
+ const home=await page('/');assert.equal(await home.locator('.game').count(),4);
  await home.locator('img').evaluateAll(imgs=>Promise.all(imgs.map(img=>{img.loading='eager';return img.decode().catch(()=>{});})));await home.screenshot({path:'artifacts/home-desktop.png',fullPage:true});
  await home.setViewportSize({width:390,height:844});await home.goto('http://127.0.0.1:8787/games/');
  assert.ok(await home.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));

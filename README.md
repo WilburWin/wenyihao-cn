@@ -28,6 +28,12 @@ npm run dev
 
 ## 内容维护
 
+### 照片
+
+照片页 `/photos/` 展示 `wenyihao/照片/` 中的图片，首页介绍区轮播手动指定的 4 张精选，点击进入照片页；正面照原图不发布。新增、替换照片后，在本机运行 `python scripts/build-photos.py`（需要 Pillow），将源照片、生成的 `public/photos/images/` 和 `public/photos/data.json` 一并提交。Cloudflare 无需安装 Python，直接部署已生成的 WebP 文件。脚本不会修改原图，也不会发布提示词 TXT 或正面照原图；网页版本移除元数据并处理 EXIF 方向。精选顺序在脚本的 `featured` 列表中修改，显示标题使用源文件名。删除照片时重新生成清单即可取消展示。
+
+照片大图支持左右按钮、键盘方向键和手机左右滑动；Esc 或关闭按钮返回列表。风格写真标注为包含图像编辑作品。
+
 - `public/index.html`:首页、个人介绍、其他板块预留.
 - `public/site.js`:手动排列的游戏卡片.
 - `public/style.css`:网站样式.

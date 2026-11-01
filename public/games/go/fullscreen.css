@@ -1,0 +1,16 @@
+.app-shell{max-width:none;width:100%;padding-inline:16px}
+@media(min-width:1050px){
+.workspace{grid-template-columns:250px minmax(0,1fr) 250px;gap:16px;grid-template-rows:minmax(0,1fr)}
+.board-stage{grid-column:2;grid-row:1;grid-template-rows:minmax(0,1fr) 40px;align-items:center;min-height:0}
+.board-zone{justify-content:center;min-width:0;width:100%}
+.board-frame{width:min(100%,calc(100dvh - 160px));max-width:100%}
+.board-bottom{width:100%;max-width:none}
+.right-column{display:contents}
+.right-column .mode-rail{grid-column:1;grid-row:1;align-self:start;max-height:100%;overflow:auto}
+.right-column .mode-list{grid-template-columns:1fr}
+.right-column .board-head{display:none}
+.right-column .control-panel{grid-column:3;grid-row:1;min-height:0;overflow:auto}
+.panel-inner{padding:18px 12px}.topbar{grid-template-columns:1fr auto 1fr}
+}
+@media(min-width:1600px){.workspace{grid-template-columns:290px minmax(0,1fr) 290px}}
+@media(max-width:1049px){.board-zone{justify-content:center}.app-shell{padding-inline:8px}}

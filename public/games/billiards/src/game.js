@@ -1856,8 +1856,8 @@
           `&since=${lan.signalLastEventId}&token=${encodeURIComponent(lan.token || "")}`;
         const t0 = performance.now();
         const res = await fetch(url, { cache: "no-store" });
-        const rtt = window.gameRealtimeRTT?.() || performance.now() - t0;
-        lan.rtt = lan.rtt ? lan.rtt * 0.8 + rtt * 0.2 : rtt;
+        const rtt = window.gameRealtimeRTT?.() || 0;
+        if (rtt) lan.rtt = rtt;
         let data = {};
         try { data = await res.json(); } catch { }
         if (!res.ok || data.ok === false) {

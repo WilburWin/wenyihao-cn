@@ -1,3 +1,5 @@
 /* The personal site uses its own room service; legacy setup controls stay hidden. */
 #networkLanTab,#networkLanPane{display:none!important}
 .network-field:has(#linkSignalUrl),label:has(#linkSignalUrl){display:none!important}
+
+.network-latency{display:inline-block;padding:4px 8px;border-radius:5px;background:#101d29e8;color:#c9d7e4;font:12px system-ui;white-space:nowrap}.network-latency[data-quality=fast]{color:#9dd8b0}.network-latency[data-quality=medium]{color:#e6d69f}.network-latency[data-quality=slow]{color:#f2b299}.perf-chip{flex-wrap:wrap;max-width:calc(100% - 20px)}
