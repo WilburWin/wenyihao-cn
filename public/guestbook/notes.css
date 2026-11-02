@@ -18,3 +18,19 @@
 @media(max-width:1100px){.guestbook-layout{gap:24px;grid-template-columns:minmax(0,1fr) 280px}.note-board{padding-inline:20px;border-width:14px}}
 @media(max-width:850px){.guestbook-layout{grid-template-columns:1fr}.note-board{padding-top:76px}.note-form{grid-row:2;max-width:600px;width:100%;justify-self:center;transform:none}}
 @media(max-width:450px){.note-board{border-width:12px;padding-inline:14px;min-height:400px}.notes-grid{grid-template-columns:1fr;gap:32px}.note{min-height:180px;padding:32px 22px 24px}.note p{font-size:18px}.board-nameplate{font-size:15px}}
+
+/* Quiet blue-grey room and a pale oak noticeboard. */
+.notes-room{--paper:#eef2f3;--ink:#33434b;--muted:#73818a;--accent:#456b7c;--line:#d2dde1;background:radial-gradient(ellipse at 15% 0,#fcfdfc,transparent 65%),linear-gradient(120deg,#eef2f3,#e2e9ec);background-attachment:fixed}
+.notes-room .site-header{background:#f4f7f7c9}
+.note-board{border:10px solid #c5ae8b;border-image:none;border-radius:7px;background:linear-gradient(#e4cfacdf,#dcc49edf),url('/assets/design/cork.webp') repeat;background-size:auto,440px 440px;box-shadow:inset 0 0 0 1px #8e744b38,inset 0 3px 12px #7253321f,0 1px 0 #f8f2e7,0 4px 8px #34444b16,0 22px 42px #34444b18}
+.note-board::before,.note-board::after{width:6px;height:6px;background:linear-gradient(135deg,#e3d9c8,#998a73);box-shadow:0 1px 2px #654d3333}
+.board-nameplate{background:#f8f4e9;color:#645d50;border:1px solid #fff9;box-shadow:0 2px 5px #72533224}
+.board-nameplate span{color:#928977}
+.note{box-shadow:1px 3px 4px #654c2d20,3px 9px 15px #654c2d24;background-color:#fff4cd}
+.note:nth-child(3n+2){background-color:#edf0de}.note:nth-child(3n){background-color:#e5eff1}.note:nth-child(4n){background-color:#f4e4dd}
+.note-form{background:linear-gradient(120deg,#fffefa,#f6f4ed);border-color:#fff;box-shadow:0 3px 7px #34444b0c,0 18px 32px #34444b14}
+.note-form::before{background:#bacbd18c;border-color:#91a9b360}
+.note-form h2{color:#3c5663}.note-form input,.note-form textarea{background:#fffefa;border-color:#d7dcda}
+.note-form .paper-button{background:#496c7b;border-color:#496c7b;color:#fff}.note-form .paper-button:hover{background:#385967}
+.notes-room :is(a,button,input,textarea):focus-visible{outline-color:#628b9b}
+@media(max-width:450px){.note-board{border-width:8px}}
