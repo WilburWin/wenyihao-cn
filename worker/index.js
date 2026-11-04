@@ -1,13 +1,22 @@
 import {Guestbook, repositories, json} from './community.js';
-import {musicRequest} from './music.js';
-import {musicAuthRequest} from './music-auth.js';
+import {createMusicHandler} from './music.js';
+import {createMusicAuthHandler} from './music-auth.js';
+import {createBilibiliFetch,musicApiTransport} from './music-transport.js';
 export {Guestbook};
 const games = new Set(['go', 'mahjong', 'billiards']);
+const musicHandlers=Object.fromEntries(['socket','fetch'].map(transport=>{
+  const fetcher=createBilibiliFetch({transport});
+  return [transport,{audio:createMusicHandler({fetcher}),auth:createMusicAuthHandler({fetcher})}];
+}));
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    if(url.pathname.startsWith('/api/music/auth/'))return musicAuthRequest(request,env);
-    if(url.pathname.startsWith('/api/music/'))return musicRequest(request,env,ctx);
+    if(url.pathname.startsWith('/api/music/')){
+      const transport=musicApiTransport(env),handlers=musicHandlers[transport];
+      const response=await (url.pathname.startsWith('/api/music/auth/')?handlers.auth(request,env):handlers.audio(request,env,ctx));
+      response.headers.set('X-Music-Api-Transport',transport);
+      return response;
+    }
     if(url.pathname==='/api/github')return repositories(request,ctx);
     if(url.pathname==='/api/guestbook'){
       if(request.method!=='GET'&&request.headers.get('Origin')!==url.origin)return json({message:'来源验证失败。'},403);

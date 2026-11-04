@@ -62,14 +62,21 @@ export function createMusicHandler({fetcher=(...args)=>fetch(...args),Extractor=
       const cachedBootstrap=!session&&bootstrapCache.get(url.pathname);
       if(cachedBootstrap?.expires>now())return cachedBootstrap.body;
       const headers=new Headers(init.headers);
-      if(!session&&['/x/web-interface/view','/x/web-interface/nav'].includes(url.pathname))headers.delete('Cookie');
+      if(!session){
+        // Keep server-issued anonymous device cookies on view/nav as well as
+        // playurl. Removing them caused cloud view requests to return 412.
+        const deviceCookies=(headers.get('Cookie')||'').split(';').map(value=>value.trim())
+          .filter(value=>/^(buvid3|buvid4)=[A-Za-z0-9_-]{1,256}$/.test(value));
+        if(deviceCookies.length)headers.set('Cookie',deviceCookies.join('; '));else headers.delete('Cookie');
+      }
       const response=await fetcher(url.toString(),{headers,redirect:'manual',signal:AbortSignal.timeout(init.timeoutMs)});
       if(response.status===412||response.status===429){
         const delay=Math.min(600,Math.max(10,Number(response.headers.get('Retry-After'))||10));
+        await response.body?.cancel().catch(()=>{});
         blockedUntil=now()+delay*1000;
         throw new MusicError('B站暂时限制取流，请稍后重试。',429,delay);
       }
-      if(!response.ok)throw new MusicError('B站资源接口暂时不可用。');
+      if(!response.ok){await response.body?.cancel().catch(()=>{});throw new MusicError('B站资源接口暂时不可用。');}
       const body=await response.json();
       if([-412,-352].includes(body.code)){blockedUntil=now()+10000;throw new MusicError('B站暂时限制取流，请稍后重试。',429,10);}
       if(session&&url.pathname==='/x/web-interface/nav'&&!body.data?.isLogin)throw new MusicError('B站登录已失效，请重新登录或退出后以访客身份播放。',401);

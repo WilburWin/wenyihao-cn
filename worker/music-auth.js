@@ -74,6 +74,7 @@ export function createMusicAuthHandler({fetcher=(...args)=>fetch(...args),now=()
     }
     if(!response.ok){
       const delay=Math.min(600,Math.max(10,Number(response.headers.get('Retry-After'))||10));
+      await response.body?.cancel().catch(()=>{});
       throw new MusicAuthError(`B站登录接口返回 HTTP ${response.status}，暂时无法完成扫码请求。请稍后重试。`,'bilibili_http_'+response.status,502,delay);
     }
     let data;try{data=await response.json();}catch{throw new MusicAuthError('B站登录接口返回了无法识别的内容，请稍后重试。','bilibili_invalid_response');}
@@ -166,7 +167,7 @@ export function createMusicAuthHandler({fetcher=(...args)=>fetch(...args),now=()
       const cookie=[...values].map(([key,value])=>`${key}=${value}`).join('; ');
       if(cookie.length>2000||/[\r\n]/.test(cookie))throw Error('invalid session');
       const profile=await fetcher('https://api.bilibili.com/x/web-interface/nav',{headers:{'User-Agent':'Mozilla/5.0',Referer:'https://www.bilibili.com/',Cookie:cookie},redirect:'manual',signal:AbortSignal.timeout(15000)});
-      if(!profile.ok)throw Error('profile unavailable');
+      if(!profile.ok){await profile.body?.cancel().catch(()=>{});throw Error('profile unavailable');}
       const result=await profile.json();
       if(result.code!==0||!result.data?.isLogin)throw Error('login not verified');
       const user={name:String(result.data.uname||'B站用户').slice(0,64),vip:Boolean(result.data.vipStatus||result.data.vip?.status)};

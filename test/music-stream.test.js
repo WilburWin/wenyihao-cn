@@ -46,7 +46,10 @@ test('actual extractor signs selected part, returns highest available audio, and
   const signed=requests.find(r=>r.url.pathname.endsWith('/playurl'));
   assert.equal(signed.url.searchParams.get('cid'),'200');assert.match(signed.url.searchParams.get('w_rid'),/^[a-f0-9]{32}$/);
   assert.equal(signed.url.searchParams.get('fnval'),'4048');
-  for(const r of requests.filter(r=>['/x/web-interface/view','/x/web-interface/nav'].includes(r.url.pathname)))assert.equal(new Headers(r.options.headers).has('Cookie'),false);
+  for(const r of requests.filter(r=>['/x/web-interface/view','/x/web-interface/nav'].includes(r.url.pathname))){
+    assert.equal(new Headers(r.options.headers).get('Cookie'),'buvid3=public-session; buvid4=public-session-4');
+    assert.equal(new Headers(r.options.headers).get('Cookie').includes('SESSDATA'),false);
+  }
   await request('/resolve?id='+track.id);assert.equal(requests.filter(r=>r.url.pathname.endsWith('/playurl')).length,1);
 });
 test('audio forwards Range and required headers, preserves 206 and streams only the chosen track',async()=>{

@@ -10,6 +10,20 @@
 
 浏览器里的第三方页面还要遵守 CORS 与 Cookie 域隔离；使用 fetch 不会改变这些规则。由现有 Worker 运行提取器、并流式转发受限的媒体请求，可以让网页用同源 `<audio>` 播放，无需 Electron、浏览器扩展或访客本地服务。
 
+## B站 API 的 Socket 传输试验
+
+`wrangler.jsonc` 中 `MUSIC_API_TRANSPORT` 默认设为 `socket`。网站入口通过 `worker/music-transport.js` 将 `api.bilibili.com` 和 `passport.bilibili.com` 的 JSON 请求交给锁定版本 `stealth-fetch@0.2.2` 的 `/lite` 客户端，以 `cloudflare:sockets` 的平台 TLS 直接发送 HTTP/1.1 请求，避开原生 `fetch()` 的 HTTP 请求头注入路径。不使用 NAT64、第三方代理或第三方 DNS 服务。
+
+二维码生成、轮询、登录校验、设备信息、WBI 密钥和音轨解析统一使用该传输。媒体 CDN 仍使用原生流式 `fetch()`，保留 Range/206、超时和已有的目标主机限制，账号 Cookie 不发送到媒体主机。网站、GitHub、留言板和游戏请求不使用这个客户端。
+
+适配器将库的 `HttpResponse` 转换为标准 `Response`，分别保留多条 `Set-Cookie`，接入取消信号、15 秒接口超时及响应读取超时。非成功响应及时取消流；库的自动重试关闭，412/429 继续交给已有冷却机制处理，不自动换传输重复撞接口。两种传输使用相同的 UA、Referer 和 Accept，不将访客的转发 IP 请求头带给 B站。
+
+音乐接口响应的 `X-Music-Api-Transport: socket` 表示服务端选用了 Socket 传输，不代表上游请求已经成功。如果需要回退，将 `wrangler.jsonc` 的 `MUSIC_API_TRANSPORT` 改为 `fetch`，提交并重新部署即可。此开关由服务器配置决定，网页访客不能用查询参数切换。保持原有 `MUSIC_SESSION_KEY` 即可，无需重新生成密钥。
+
+这项改动仍然从 Cloudflare 出口请求 B站，不会自动获得访客浏览器的 B站登录状态，也不能保证消除 412 或取得 Hi-Res。Socket 和原生 fetch 的出口及 TLS 也可能不同，不能将两者成功率的差异直接归因于某一个请求头。线上效果需在部署后验证；本地成功不等于公网成功。
+
+匿名解析对视频信息和 WBI 密钥接口保留提取器从 `finger/spi` 获取的 `buvid3/buvid4`；只允许设备 Cookie 白名单，不携带账号会话字段。此前对 view/nav 删除全部 Cookie 的做法，在云端 Socket 测试中仍导致 view 返回 412，保留有效设备 Cookie 后同一链路成功。登录后的 Cookie 仍按原有独立加密会话传递，不加入匿名缓存。
+
 ## 包的使用边界
 
 - WBI 签名和匿名会话处理使用锁定版本的 npm 包；保留在 node_modules 中的 MIT 许可与发布来源。
@@ -40,6 +54,8 @@ Worker 在 WBI 签名前请求扩展 DASH 音轨标志，音质菜单仍以实�
 
 ## 实测范围
 
+2026-11-05，使用独立的临时 Cloudflare 诊断 Worker 做线上对照（未替换正式站点）：相同应用请求头下，原生 fetch 的二维码生成返回 HTTP 412，Socket 生成返回 HTTP 200 / code 0，并获得有效二维码。保留匿名设备 Cookie 后，测试 BV 的 finger/spi、view、nav、WBI playurl 全部返回 HTTP 200，提供 AAC 64K / 132K / 192K；继续请求原生媒体转发，Range `bytes=0-1023` 返回 HTTP 206 和正确的 1024 字节范围。该测试不涉及真实账号扫码确认，尚未验证登录后的 Hi-Res，也不代表全部歌曲或未来出口均可用。诊断 Worker 和临时路由在测试后删除。
+
 2026-11-05，本地完整 Workers 运行时成功解析公开歌单中的音轨，返回 AAC 64K / 132K / 192K 档位。音频 Range 请求返回 `206`、正确的 `Content-Range` 及 MP4 数据。测试覆盖分P签名、缓存、失效地址刷新、CDN 限制和风控停止。
 
 这不保证 Cloudflare 公网节点或未来接口持续可用。B站的地域限制、风控和接口变化仍可能导致部分曲目无法播放；前端会显示失败状态并保留 MV 原视频入口。
@@ -55,5 +71,7 @@ Worker 在 WBI 签名前请求扩展 DASH 音轨标志，音质菜单仍以实�
 - [MDN：受限制的请求头](https://developer.mozilla.org/en-US/docs/Glossary/Forbidden_request_header)
 - [MDN：CORS](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CORS)
 - [B站扫码二维码接口](https://passport.bilibili.com/x/passport-login/web/qrcode/generate)
+- [stealth-fetch 源码](https://github.com/0XwX/stealth-fetch)（Apache-2.0，使用 npm 0.2.2 的 lite 入口）
+- [Cloudflare：Worker 子请求的 HTTP 请求头](https://developers.cloudflare.com/fundamentals/reference/http-headers/)
 
 BLMV 作为架构研究参考，本站没有复制其 GPL 代码。实际提取器使用上面的 MIT npm 包，Worker 适配与页面控件为本项目实现。
