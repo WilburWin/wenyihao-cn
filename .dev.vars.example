@@ -1,0 +1,3 @@
+# Run: node scripts/music-session-key.mjs --local
+# Production: node scripts/music-session-key.mjs | npx wrangler secret put MUSIC_SESSION_KEY
+# Never commit .dev.vars or real encryption keys.

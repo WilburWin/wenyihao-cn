@@ -180,3 +180,29 @@ node public/games/billiards/test/skid.test.js
 留言使用新增的 `Guestbook` Durable Object，绑定 `GUESTBOOK`，迁移标签 `v2-guestbook`。配置已写入 `wrangler.jsonc`，正常执行 `wrangler deploy` 会应用迁移，无需手动创建数据库。生产留言独立于本地 `.wrangler` 数据，GitHub 更新不会清空生产留言。
 
 留言提交后直接公开，不设登录或审核。站长可在 Cloudflare 中设置 Worker Secret `GUESTBOOK_ADMIN_TOKEN`，通过带该令牌的 `DELETE /api/guestbook?id=<便签编号>` 移除留言；请求需同时发送 `Origin: https://wenyihao.cn` 和 `Authorization: Bearer <令牌>`。便签编号由读取接口返回。未设置此密钥时删除接口关闭。令牌只保存在 Worker Secret，勿放入前端或提交到仓库。
+
+## 本地歌单工作室
+
+运行 `npm run music:studio`，打开 http://127.0.0.1:8790 。首次读取根目录 `歌单.txt`，支持 B站候选搜索、优先 UP 主排序、手动锁定、分P、试听、自动保存及导出。搜索按随机 12–20 秒间隔执行、保留本地候选缓存，412 后先冷却 10 秒；连续触发逐步加长，最长 10 分钟，且不自动重试。详细说明见 [tools/music-studio/README.md](tools/music-studio/README.md)。
+
+网站音乐页为 `/music/`，当前发布的是本地歌单中已锁定的 16 首歌曲。页面使用独立音轨和自定义网页播放器，MV 按钮打开 B站原视频。支持播放/暂停、进度拖动、音量、列表/单曲循环、随机播放、系统媒体键和当前可用音质选择，默认选择浏览器能解码的最高码率。
+
+界面参考 Spotify 与 BiliTune：黑灰三栏布局、真实歌曲封面、歌单拼图、固定播放条、可收起的播放详情与下一首队列，手机端使用单栏。支持当前浏览器内的喜欢与最近播放，不修改 B站收藏夹。封面已缓存到本站；新增歌曲后执行 `python scripts/music-artwork.py` 补齐（需要 Pillow，顺序低频请求，遇到风控停止）。设计记录见 [docs/music-design.md](docs/music-design.md)。
+
+取流使用锁定版本的 `@bryan-kuang/bilibili-audio-extractor@0.1.0`。该包依赖 Node 的 `crypto`、`fs` 和服务端请求头，不能直接放进第三方网页运行。现有 Cloudflare Worker 适配其 WBI 签名和音轨提取，并流式转发音频；访客只需浏览器，无需本地程序或扩展。
+
+- `GET /api/music/resolve?id=<已发布歌曲ID>`：读取指定分P、时长及音质列表，临时地址仅在服务端短期缓存。
+- `GET /api/music/audio?id=<ID>&quality=<音轨ID>`：流式转发音轨，保留 Range / 206；CDN 地址失效时最多重新解析一次。
+- 只允许已发布歌曲及受限的 B站媒体域名，不接受任意上游 URL。遇到风控停止解析，提示稍后重试。
+
+播放器提供可选的「登录 B站」按钮：使用 B站 App 扫码建立独立网页登录会话，不会自动读取浏览器已有的 B站 Cookie。账号会话以 AES-GCM 加密后保存在当前浏览器的 HttpOnly Cookie 中，最多 8 小时；Worker 在请求音轨时解密使用，不写入数据库、日志或共享缓存。不同浏览器账号的取流缓存隔离，退出后清除本站会话并按访客权限重新获取歌曲。
+
+只有接口实际返回且浏览器支持的音轨才会出现在音质菜单中，登录不能保证 Hi-Res。歌曲标题标有「Hi-res」也不代表提供无损音轨。接口风控或变化、Cloudflare 生产节点出网仍可能影响播放；本地成功不等于生产已经验证。
+
+本地先运行 `node scripts/music-session-key.mjs --local` 生成 `.dev.vars` 中的加密密钥，再用 `npm run dev`，完整音乐预览为 http://127.0.0.1:8787/music/ 。静态服务不能运行取流及登录接口。Cloudflare 已配置 `nodejs_compat`；生产环境需一次性设置名为 `MUSIC_SESSION_KEY` 的 Worker Secret：
+
+```powershell
+node scripts/music-session-key.mjs | npx wrangler secret put MUSIC_SESSION_KEY
+```
+
+这条命令生成的是随机加密密钥，不是 B站账号凭据；不要提交真实密钥或 `.dev.vars`。修改生产密钥会使旧会话失效。未配置密钥时访客播放仍可使用，扫码登录关闭。实现说明及来源见 [docs/music-playback.md](docs/music-playback.md)。

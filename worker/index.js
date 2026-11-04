@@ -1,9 +1,13 @@
 import {Guestbook, repositories, json} from './community.js';
+import {musicRequest} from './music.js';
+import {musicAuthRequest} from './music-auth.js';
 export {Guestbook};
 const games = new Set(['go', 'mahjong', 'billiards']);
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    if(url.pathname.startsWith('/api/music/auth/'))return musicAuthRequest(request,env);
+    if(url.pathname.startsWith('/api/music/'))return musicRequest(request,env,ctx);
     if(url.pathname==='/api/github')return repositories(request,ctx);
     if(url.pathname==='/api/guestbook'){
       if(request.method!=='GET'&&request.headers.get('Origin')!==url.origin)return json({message:'来源验证失败。'},403);

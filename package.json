@@ -1,5 +1,19 @@
 {
-  "name": "wenyihao-cn", "private": true, "type": "module",
-  "scripts": { "dev": "wrangler dev", "deploy": "wrangler deploy", "test": "node --test test/*.test.js", "check": "node scripts/check.mjs" },
-  "devDependencies": { "wrangler": "^4.0.0" }
+  "name": "wenyihao-cn",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node --test test/*.test.js",
+    "check": "node scripts/check.mjs",
+    "music:studio": "node scripts/music-studio.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  },
+  "dependencies": {
+    "@bryan-kuang/bilibili-audio-extractor": "0.1.0",
+    "qrcode-generator": "2.0.4"
+  }
 }
