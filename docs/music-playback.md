@@ -28,6 +28,8 @@
 - `POST /api/music/auth/poll`：前端每 3 秒检查，关闭窗口即停止；扫码并确认后校验账号状态，将网页登录会话加密放入浏览器 Cookie。发生网络错误后停下，等用户手动重试。
 - `POST /api/music/auth/logout`：清除本站 Cookie，停止旧音频并重新解析访客音轨；不退出 B站官网账号。
 
+生成二维码失败时返回安全的 `authIssue` 分类（上游 HTTP 状态、超时、网络、响应解析或本站处理阶段），不回显原始响应、取码 URL、轮询密钥或账号凭据。失败通常冷却 10 秒，B站明确要求更长等待时尊重其 Retry-After；前端显示倒计时，不自动重试申请。成功申请后限制 30 秒内重复取码，但当前浏览器可从其加密 Cookie 恢复未过期二维码，不必再次请求 B站。关闭并重新打开窗口时，也会继续展示内存中尚未过期的二维码。
+
 这不是仅授权音乐的 OAuth 接入，而是 B站网页登录会话。本站会使用该会话调用音轨接口，Worker 会接触解密后的凭据；不要求输入密码，不读取已有的浏览器 B站 Cookie。会话最多保存 8 小时，不自动刷新，不写入数据库、日志或其他访客能复用的缓存。Cookie 使用 AES-GCM，密文绑定站点来源和用途，生产启用 `__Host-`、Secure、HttpOnly、SameSite=Lax。写接口检查同源 Origin，只允许 HTTPS（localhost 开发例外）。本地退出清除本浏览器 Cookie，已复制的旧密文仍有原定有效期。
 
 本地执行 `node scripts/music-session-key.mjs --local`；生成的 `.dev.vars` 已忽略。生产执行 `node scripts/music-session-key.mjs | npx wrangler secret put MUSIC_SESSION_KEY`，设置 32 字节随机密钥的 base64url 编码（43 字符）。密钥用于加密，不是账号凭据；不要在前端或仓库中保存。生产不配置时关闭扫码登录，访客播放不受影响。

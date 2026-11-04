@@ -53,14 +53,34 @@ export async function readMusicSession(request,env){
 }
 export function clearMusicSessionCookie(request){return setCookie(request,'',0);}
 
+class MusicAuthError extends Error{
+  constructor(message,issue,status=502,retryAfter=10){super(message);this.issue=issue;this.status=status;this.retryAfter=retryAfter;}
+}
+function validQRTarget(value){
+  try{const url=new URL(value);return url.protocol==='https:'&&['passport.bilibili.com','account.bilibili.com'].includes(url.hostname)&&!url.username&&!url.password;}catch{return false;}
+}
+function qrImage(url){const qr=qrcode(0,'M');qr.addData(url);qr.make();return qr.createDataURL(5,16);}
+
 // Store only the encrypted session in this browser. Never put login cookies in
 // shared caches, durable storage, localStorage, a response body, or log output.
 export function createMusicAuthHandler({fetcher=(...args)=>fetch(...args),now=()=>Date.now()}={}){
-  const attempts=new Map();
+  const attempts=new Map(),starts=new Map();
   async function upstream(path){
-    const response=await fetcher(PASSPORT+path,{headers:{'User-Agent':'Mozilla/5.0',Referer:'https://www.bilibili.com/'},redirect:'manual',signal:AbortSignal.timeout(15000)});
-    if(!response.ok)throw Error('passport unavailable');
-    const data=await response.json();if(data.code!==0||!data.data)throw Error('passport rejected');
+    let response;
+    try{response=await fetcher(PASSPORT+path,{headers:{'User-Agent':'Mozilla/5.0',Referer:'https://www.bilibili.com/',Accept:'application/json, text/plain, */*'},redirect:'manual',signal:AbortSignal.timeout(15000)});}
+    catch(error){
+      if(['TimeoutError','AbortError'].includes(error?.name))throw new MusicAuthError('连接 B站登录接口超时，请稍后重试。','bilibili_timeout',504);
+      throw new MusicAuthError('当前服务器暂时无法连接 B站登录接口，请稍后重试。','bilibili_network');
+    }
+    if(!response.ok){
+      const delay=Math.min(600,Math.max(10,Number(response.headers.get('Retry-After'))||10));
+      throw new MusicAuthError(`B站登录接口返回 HTTP ${response.status}，暂时无法完成扫码请求。请稍后重试。`,'bilibili_http_'+response.status,502,delay);
+    }
+    let data;try{data=await response.json();}catch{throw new MusicAuthError('B站登录接口返回了无法识别的内容，请稍后重试。','bilibili_invalid_response');}
+    if(data.code!==0||!data.data){
+      const code=Number.isSafeInteger(data.code)?data.code:null;
+      throw new MusicAuthError(`B站登录接口未接受请求${code===null?'':`（错误码 ${code}）`}，请稍后重试。`,code===null?'bilibili_invalid_response':'bilibili_code_'+code);
+    }
     return {response,data:data.data};
   }
   function reply(value,status=200,cookies=[],extra={}){
@@ -82,28 +102,47 @@ export function createMusicAuthHandler({fetcher=(...args)=>fetch(...args),now=()
       return reply({configured,configurationIssue:config.issue,configurationMessage:config.message,loggedIn:Boolean(session),user:session?.user||null,expiresAt:session?.expiresAt||null});
     }
     if(!configured)return reply({message:config.message,configurationIssue:config.issue},503);
+    let startKey=null,stage='login';
     try{
       if(action==='start'){
+        // Retry a lost response or reopen this browser's QR without asking Bili
+        // to create another login challenge. The URL stays in a sealed cookie.
+        const pending=await openMusicSession(cookieValue(request,true),request,env,'qr',now());
+        if(pending?.expiresAt>now()+10000&&typeof pending.key==='string'&&validQRTarget(pending.url)){
+          stage='qr_encoding';
+          return reply({qrImage:qrImage(pending.url),expiresAt:pending.expiresAt,reused:true});
+        }
         const address=request.headers.get('CF-Connecting-IP')||'local';
         const hash=b64(new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(address))));
-        const key='start:'+hash,last=attempts.get(key)||0;
-        if(now()-last<30000)return reply({message:'二维码刚刚生成，请稍后再试。'},429,[],{'Retry-After':'30'});
-        attempts.set(key,now());
-        for(const [k,t] of attempts)if(now()-t>5*60000)attempts.delete(k);
-        while(attempts.size>2000)attempts.delete(attempts.keys().next().value);
+        const last=starts.get(hash);
+        if(last?.until>now()){
+          const seconds=Math.max(1,Math.ceil((last.until-now())/1000));
+          const message=last.issue==='qr_recently_generated'?`刚刚已申请过二维码，请 ${seconds} 秒后再申请。`:last.issue==='qr_request_in_progress'?`二维码申请正在处理中，请 ${seconds} 秒后再试。`:`上次二维码申请未成功，请 ${seconds} 秒后重试。`;
+          return reply({message,authIssue:last.issue,retryAfter:seconds},429,[],{'Retry-After':String(seconds)});
+        }
+        for(const [key,entry] of starts)if(entry.until<=now())starts.delete(key);
+        while(starts.size>=2000)starts.delete(starts.keys().next().value);
+        startKey=hash;
+        starts.set(hash,{until:now()+20000,issue:'qr_request_in_progress'});
+        stage='qr_request';
         const {data}=await upstream('/x/passport-login/web/qrcode/generate');
-        const target=new URL(data.url);
-        if(target.protocol!=='https:'||!['passport.bilibili.com','account.bilibili.com'].includes(target.hostname)||typeof data.qrcode_key!=='string'||data.qrcode_key.length>256)throw Error('invalid QR');
+        if(!validQRTarget(data.url)||typeof data.qrcode_key!=='string'||!data.qrcode_key||data.qrcode_key.length>256)throw new MusicAuthError('B站返回的登录二维码无效，请稍后重试。','bilibili_invalid_qr');
         const expiresAt=now()+QR_SECONDS*1000;
-        const token=await sealMusicSession({key:data.qrcode_key,expiresAt},request,env,'qr');
-        const qr=qrcode(0,'M');qr.addData(data.url);qr.make();
-        return reply({qrImage:qr.createDataURL(5,16),expiresAt},200,[setCookie(request,token,QR_SECONDS,true)]);
+        stage='qr_encoding';
+        const image=qrImage(data.url);
+        stage='qr_seal';
+        const token=await sealMusicSession({key:data.qrcode_key,url:data.url,expiresAt},request,env,'qr');
+        starts.set(hash,{until:now()+30000,issue:'qr_recently_generated'});
+        return reply({qrImage:image,expiresAt,reused:false},200,[setCookie(request,token,QR_SECONDS,true)]);
       }
       const pending=await openMusicSession(cookieValue(request,true),request,env,'qr',now());
       if(!pending)return reply({state:'expired',message:'二维码已过期，请重新生成。'},200,[setCookie(request,'',0,true)]);
       const key='poll:'+pending.key,last=attempts.get(key)||0;
       if(now()-last<2500)return reply({state:'waiting'},200);
+      for(const [k,t] of attempts)if(now()-t>5*60000)attempts.delete(k);
+      while(attempts.size>=2000)attempts.delete(attempts.keys().next().value);
       attempts.set(key,now());
+      stage='qr_poll';
       const {response,data}=await upstream('/x/passport-login/web/qrcode/poll?qrcode_key='+encodeURIComponent(pending.key));
       if(data.code===86101)return reply({state:'waiting'});
       if(data.code===86090)return reply({state:'scanned'});
@@ -136,7 +175,11 @@ export function createMusicAuthHandler({fetcher=(...args)=>fetch(...args),now=()
       if(token.length>3800)throw Error('session too large');
       attempts.delete(key);
       return reply({state:'success',user,expiresAt},200,[setCookie(request,token,SESSION_SECONDS),setCookie(request,'',0,true)]);
-    }catch{return reply({message:'B站登录暂不可用，请稍后重试。'},502);}
+    }catch(error){
+      const retryAfter=error instanceof MusicAuthError?error.retryAfter:10;
+      if(startKey)starts.set(startKey,{until:now()+retryAfter*1000,issue:'qr_previous_request_failed'});
+      return reply({message:error instanceof MusicAuthError?error.message:'B站登录暂不可用，请稍后重试。',authIssue:error instanceof MusicAuthError?error.issue:stage+'_failed',retryAfter},error instanceof MusicAuthError?error.status:502,[],{'Retry-After':String(retryAfter)});
+    }
   };
 }
 export const musicAuthRequest=createMusicAuthHandler();

@@ -103,3 +103,40 @@ test('errors never expose upstream credentials or untrusted QR locations',async(
     assert.equal(response.status,502);assert.doesNotMatch(await response.text(),/SESSDATA|fake-test|evil.test|secret/);
   }
 });
+
+test('failed generation retains upstream diagnostics and has a short honest cooldown',async()=>{
+  let now=Date.now(),calls=0;
+  const handler=createMusicAuthHandler({now:()=>now,fetcher:async()=>{calls++;return new Response('private-upstream-body',{status:412});}});
+  const first=await handler(request('start'),env),body=await first.json();
+  assert.equal(first.status,502);assert.equal(body.authIssue,'bilibili_http_412');
+  assert.equal(body.retryAfter,10);assert.ok(body.message.includes('HTTP 412'));
+  assert.ok(!JSON.stringify(body).includes('private-upstream-body'));
+  now+=3000;
+  const second=await handler(request('start'),env),retry=await second.json();
+  assert.equal(second.status,429);assert.equal(retry.retryAfter,7);assert.equal(retry.authIssue,'qr_previous_request_failed');
+  assert.ok(!retry.message.includes('已申请过'));assert.equal(calls,1);
+  now+=7001;
+  assert.equal((await handler(request('start'),env)).status,502);assert.equal(calls,2);
+});
+
+test('pending browser QR can be reopened across isolates without another upstream call',async()=>{
+  const fetcher=async()=>Response.json({code:0,data:{url:'https://account.bilibili.com/test?challenge=fake-only',qrcode_key:'test-only'}});
+  const first=await createMusicAuthHandler({fetcher})(request('start'),env),data=await first.json();
+  const Cookie=cookieFrom(first,'__Host-wyh_bili_qr');
+  const second=await createMusicAuthHandler({fetcher:async()=>{throw Error('must reuse pending QR');}})(request('start',{Cookie}),env);
+  const reused=await second.json();assert.equal(second.status,200);assert.equal(reused.reused,true);
+  assert.equal(reused.qrImage,data.qrImage);assert.equal(reused.expiresAt,data.expiresAt);
+  assert.ok(!JSON.stringify(reused).includes('challenge=fake-only'));assert.ok(!JSON.stringify(reused).includes('test-only'));
+});
+
+test('upstream timeout, malformed JSON and API rejection have safe distinct error codes',async()=>{
+  const cases=[
+    [async()=>{throw new DOMException('private secret','TimeoutError');},'bilibili_timeout',504],
+    [async()=>new Response('<html>private content</html>'),'bilibili_invalid_response',502],
+    [async()=>Response.json({code:-352,message:'private-upstream-error'}),'bilibili_code_-352',502]
+  ];
+  for(const [fetcher,issue,status] of cases){
+    const response=await createMusicAuthHandler({fetcher})(request('start'),env),body=await response.json();
+    assert.equal(response.status,status);assert.equal(body.authIssue,issue);assert.doesNotMatch(JSON.stringify(body),/private/);
+  }
+});
