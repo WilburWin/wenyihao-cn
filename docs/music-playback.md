@@ -32,6 +32,8 @@
 
 本地执行 `node scripts/music-session-key.mjs --local`；生成的 `.dev.vars` 已忽略。生产执行 `node scripts/music-session-key.mjs | npx wrangler secret put MUSIC_SESSION_KEY`，设置 32 字节随机密钥的 base64url 编码（43 字符）。密钥用于加密，不是账号凭据；不要在前端或仓库中保存。生产不配置时关闭扫码登录，访客播放不受影响。
 
+复制粘贴附带的首尾空格或换行会自动移除，密钥主体仍须为 43 位 base64url 字符。状态接口用 `configurationIssue: "missing"` 表示未读取到密钥，`"invalid_format"` 表示已读取但格式不正确，配置成功时为 `null`；不返回密钥内容。调整 Cloudflare 配置后须部署到当前域名使用的 Worker 才会生效。
+
 Worker 在 WBI 签名前请求扩展 DASH 音轨标志，音质菜单仍以实际返回结果为准。登录后重新解析当前歌曲并保留进度，退出时先丢弃旧音频缓冲。Hi-Res 还需要音源提供 FLAC 音轨、账号有访问权限且浏览器能解码，不能靠视频标题或一个开关保证。
 
 ## 实测范围

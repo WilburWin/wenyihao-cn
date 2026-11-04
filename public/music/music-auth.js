@@ -18,8 +18,8 @@
     return data;
   }
   async function refresh(){
-    try{state=await api('status');render();}
-    catch{login.title='登录服务暂不可用，点击查看';}
+    try{state=await api('status');render();return true;}
+    catch{login.title='登录服务暂不可用，点击查看';return false;}
   }
   function changed(){window.dispatchEvent(new Event('music-auth-changed'));}
   function ready(text){stop();hideQR();message.textContent=text;generate.disabled=false;generate.hidden=false;generate.textContent='重新生成二维码';}
@@ -42,10 +42,11 @@
     stop();hideQR();generate.disabled=true;generate.hidden=false;generate.textContent='同意并生成二维码';
     message.textContent='正在读取登录状态…';dialog.showModal();
     const serial=generation;
-    await refresh();
+    const available=await refresh();
     if(!dialog.open||serial!==generation)return;
+    if(!available){message.textContent='暂时无法连接登录服务，请稍后重新打开窗口。';return;}
     if(state.loggedIn){message.textContent=`已以 ${state.user?.name||'B站用户'} 登录。Hi-Res 仅在接口实际提供且浏览器支持时显示。`;generate.hidden=true;}
-    else if(!state.configured){message.textContent='站点尚未开启扫码登录：站长需要在 Cloudflare 设置 MUSIC_SESSION_KEY 加密密钥。访客播放仍可使用。';}
+    else if(!state.configured){message.textContent=state.configurationMessage||'站点尚未开启扫码登录：请在 Cloudflare 设置 MUSIC_SESSION_KEY 并部署。访客播放仍可使用。';}
     else{message.textContent='登录后会重新获取音质列表；Hi-Res 取决于音源、账号权限和浏览器支持。';generate.disabled=false;}
   });
   generate.addEventListener('click',async()=>{

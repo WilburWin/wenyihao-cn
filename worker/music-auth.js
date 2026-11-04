@@ -11,9 +11,16 @@ function unb64(text){return Uint8Array.from(atob(text.replace(/-/g,'+').replace(
 function cookieName(request,pending=false){return (new URL(request.url).protocol==='https:'?'__Host-':'')+'wyh_bili'+(pending?'_qr':'');}
 function cookieValue(request,pending=false){const name=cookieName(request,pending)+'=';return request.headers.get('Cookie')?.split(';').map(s=>s.trim()).find(s=>s.startsWith(name))?.slice(name.length)||'';}
 function setCookie(request,value,seconds,pending=false){return `${cookieName(request,pending)}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${seconds}${new URL(request.url).protocol==='https:'?'; Secure':''}`;}
+function sessionKeyConfig(env){
+  // Clipboard pipelines and dashboard inputs can add surrounding whitespace.
+  const raw=typeof env.MUSIC_SESSION_KEY==='string'?env.MUSIC_SESSION_KEY.trim():'';
+  if(!raw)return {issue:'missing',message:'线上尚未读到 MUSIC_SESSION_KEY，请在当前 Worker 的变量和机密中添加并部署。'};
+  if(!/^[A-Za-z0-9_-]{43}$/.test(raw))return {issue:'invalid_format',message:'线上已读到 MUSIC_SESSION_KEY，但格式不正确。请重新生成并替换为 43 位密钥，不要包含引号或命令文本，然后部署。'};
+  return {raw,issue:null,message:null};
+}
 async function encryptionKey(env){
-  const raw=env.MUSIC_SESSION_KEY;
-  if(typeof raw!=='string'||!/^[A-Za-z0-9_-]{43}$/.test(raw))return null;
+  const {raw,issue}=sessionKeyConfig(env);
+  if(issue)return null;
   if(!keyCache.has(raw)){
     keyCache.clear();
     keyCache.set(raw,crypto.subtle.importKey('raw',unb64(raw),{name:'AES-GCM'},false,['encrypt','decrypt']));
@@ -68,13 +75,13 @@ export function createMusicAuthHandler({fetcher=(...args)=>fetch(...args),now=()
     if(request.method!==expected)return reply({message:'不支持的操作。'},405,[],{Allow:expected});
     if(request.headers.get('Sec-Fetch-Site')==='cross-site'||(action!=='status'&&request.headers.get('Origin')!==url.origin))return reply({message:'请从本站发起登录操作。'},403);
     if(url.protocol!=='https:'&&!['localhost','127.0.0.1','[::1]'].includes(url.hostname))return reply({message:'登录需要 HTTPS。'},400);
-    const configured=Boolean(await encryptionKey(env));
+    const config=sessionKeyConfig(env),configured=Boolean(await encryptionKey(env));
     if(action==='logout')return reply({loggedIn:false},200,[setCookie(request,'',0),setCookie(request,'',0,true)]);
     if(action==='status'){
       const session=await readMusicSession(request,env);
-      return reply({configured,loggedIn:Boolean(session),user:session?.user||null,expiresAt:session?.expiresAt||null});
+      return reply({configured,configurationIssue:config.issue,configurationMessage:config.message,loggedIn:Boolean(session),user:session?.user||null,expiresAt:session?.expiresAt||null});
     }
-    if(!configured)return reply({message:'站点尚未配置登录加密密钥，请先设置 MUSIC_SESSION_KEY。'},503);
+    if(!configured)return reply({message:config.message,configurationIssue:config.issue},503);
     try{
       if(action==='start'){
         const address=request.headers.get('CF-Connecting-IP')||'local';

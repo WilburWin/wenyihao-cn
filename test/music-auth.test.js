@@ -7,6 +7,29 @@ const env={MUSIC_SESSION_KEY:Buffer.alloc(32,7).toString('base64url')};
 const request=(action,headers={},method=action==='status'?'GET':'POST')=>new Request(origin+'/api/music/auth/'+action,{method,headers:{Origin:origin,...headers}});
 const cookieFrom=(response,name)=>response.headers.getSetCookie().find(value=>value.startsWith(name+'=')).split(';')[0];
 
+test('dashboard copy whitespace is tolerated without changing the encryption key',async()=>{
+  const padded={MUSIC_SESSION_KEY:' \r\n'+env.MUSIC_SESSION_KEY+'\r\n\t'},req=request('status');
+  const payload={scope:crypto.randomUUID(),cookie:'SESSDATA=test-only',expiresAt:Date.now()+10000};
+  const token=await sealMusicSession(payload,req,padded);
+  assert.deepEqual(await openMusicSession(token,req,env),payload);
+  const status=await (await createMusicAuthHandler()(req,padded)).json();
+  assert.equal(status.configured,true);assert.equal(status.configurationIssue,null);
+  assert.ok(!JSON.stringify(status).includes(env.MUSIC_SESSION_KEY));
+});
+
+test('configuration diagnostics distinguish missing and invalid values without exposing them',async()=>{
+  const handler=createMusicAuthHandler();
+  for(const [value,issue] of [['','missing'],[' \r\n','missing'],['not-a-valid-key','invalid_format'],['"'+env.MUSIC_SESSION_KEY+'"','invalid_format']]){
+    const invalid={MUSIC_SESSION_KEY:value};
+    const status=await (await handler(request('status'),invalid)).json();
+    assert.equal(status.configured,false);assert.equal(status.configurationIssue,issue);
+    assert.ok(status.configurationMessage.includes('MUSIC_SESSION_KEY'));
+    const response=await handler(request('start'),invalid),body=await response.json();
+    assert.equal(response.status,503);assert.equal(body.configurationIssue,issue);
+    if(value.trim())assert.ok(!JSON.stringify(body).includes(value.trim()));
+  }
+});
+
 test('encrypted session rejects tampering, expiry, another origin and QR/session purpose confusion',async()=>{
   const req=request('status'),payload={scope:crypto.randomUUID(),cookie:'SESSDATA=fake-test-only',expiresAt:Date.now()+10000};
   const token=await sealMusicSession(payload,req,env);
