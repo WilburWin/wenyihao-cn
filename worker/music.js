@@ -1,6 +1,7 @@
 import {BilibiliAudioExtractor} from '@bryan-kuang/bilibili-audio-extractor';
 import {json} from './community.js';
 import {readMusicSession,clearMusicSessionCookie} from './music-auth.js';
+import {requestedTrack,trackQuery} from './music-catalog.js';
 
 const API_ORIGIN = 'https://api.bilibili.com';
 const REFERER = 'https://www.bilibili.com/';
@@ -44,12 +45,13 @@ export function createMusicHandler({fetcher=(...args)=>fetch(...args),Extractor=
 
   async function publishedTracks(request,env){
     const origin=new URL(request.url).origin,cached=playlists.get(origin);
-    if(cached&&cached.expires>now())return cached.tracks;
+    if(cached&&cached.expires>now())return cached.catalog;
     const response=await env.ASSETS.fetch(new Request(new URL('/music/playlist.json',origin)));
     if(!response.ok)throw new MusicError('歌单暂时无法读取。');
     const data=await response.json();
     const tracks=(data.tracks||[]).filter(t=>t.confirmed&&/^[a-f0-9]{16}$/.test(t.id)&&/^BV[\da-zA-Z]{10}$/.test(t.bvid));
-    playlists.set(origin,{tracks,expires:now()+30000});return tracks;
+    const catalog={tracks,playlists:data.playlists||[]};
+    playlists.set(origin,{catalog,expires:now()+30000});return catalog;
   }
 
   async function extract(track,session){
@@ -85,6 +87,7 @@ export function createMusicHandler({fetcher=(...args)=>fetch(...args),Extractor=
       }
       if(url.pathname==='/x/web-interface/view'&&body.code===0){
         video=body.data;
+        if(track.dynamic&&String(video.owner?.mid)!==track.mid)throw new MusicError('视频不属于所选优选 UP 主。',403);
         page=video.pages?.[(Number(track.page)||1)-1];
         if(!page)throw new MusicError('这个视频分P已不可用，请重新选择歌曲资源。',404);
         // The package defaults to the first part. Override cid in the response
@@ -108,7 +111,7 @@ export function createMusicHandler({fetcher=(...args)=>fetch(...args),Extractor=
       const deadline=Number(new URL(value).searchParams.get('deadline'));return deadline?deadline*1000:Infinity;
     }));
     const expiresAt=Math.min(now()+10*60000,...deadlines)-30000;
-    return {id:track.id,title:track.title,artist:track.artist,authenticated:Boolean(session),videoTitle:video?.title||result.title,
+    return {id:track.id,title:track.title||video?.title||result.title,artist:track.artist||video?.owner?.name||'',authenticated:Boolean(session),videoTitle:video?.title||result.title,
       duration:Number(page?.duration||result.duration)||0,cover:video?.pic||null,author:video?.owner?.name||track.author,
       choices,expiresAt};
   }
@@ -140,14 +143,14 @@ export function createMusicHandler({fetcher=(...args)=>fetch(...args),Extractor=
     const origin=request.headers.get('Origin');
     if((origin&&origin!==url.origin)||request.headers.get('Sec-Fetch-Site')==='cross-site')return json({message:'请从本站播放音乐。'},403);
     try {
-      const tracks=await publishedTracks(request,env),track=tracks.find(t=>t.id===url.searchParams.get('id'));
+      const catalog=await publishedTracks(request,env),track=requestedTrack(url,catalog);
       if(!track)throw new MusicError('歌曲未发布或不存在。',404);
       const session=await readMusicSession(request,env);
       let plan=await planFor(request,track,ctx,session);
       if(url.pathname.endsWith('/resolve')){
         const {choices,expiresAt,...info}=plan;
         return json({...info,expiresAt,qualities:choices.map(({id,label,mime,bandwidth})=>({id,label,mime,bandwidth})),
-          streamUrl:'/api/music/audio?id='+track.id});
+          streamUrl:'/api/music/audio?'+trackQuery(track)});
       }
       const range=request.headers.get('Range');
       if(range&&!/^bytes=(?:\d+-\d*|-\d+)$/.test(range))throw new MusicError('不支持的音频范围。',416);

@@ -1,0 +1,23 @@
+// New deployments only. Do not use this example to rename an existing Worker.
+{
+  "name": "personal-site",
+  "main": "../worker/index.js",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": { "MUSIC_API_TRANSPORT": "socket" },
+  "assets": {
+    "directory": "../public",
+    "binding": "ASSETS",
+    "run_worker_first": ["/realtime/*", "/api/*"]
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOMS", "class_name": "GameRoom" },
+      { "name": "GUESTBOOK", "class_name": "Guestbook" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["GameRoom"] },
+    { "tag": "v2-guestbook", "new_sqlite_classes": ["Guestbook"] }
+  ]
+}

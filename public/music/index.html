@@ -10,7 +10,7 @@
   <link rel="stylesheet" href="/shared/navigation.css">
   <link rel="stylesheet" href="/music/music.css">
   <script src="/shared/navigation.js" defer></script>
-  <script src="/music/music.js" defer></script>
+  <script src="/music/music.js" type="module"></script>
   <script src="/music/music-auth.js" defer></script>
 </head>
 <body class="music-room">
@@ -31,8 +31,11 @@
     <aside class="music-sidebar panel" aria-label="音乐资料库">
       <div class="library-heading"><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#library"/></svg><h2>你的资料库</h2><span class="library-caption" lang="en">LIBRARY</span></div>
       <div class="library-tabs" aria-label="筛选收藏"><button class="library-chip active" data-view="all" type="button" aria-pressed="true">全部</button><button class="library-chip" data-view="liked" type="button" aria-pressed="false">喜欢</button><button class="library-chip" data-view="recent" type="button" aria-pressed="false">最近</button></div>
-      <button class="library-playlist active" data-view="all" type="button"><img class="library-cover" src="/music/artwork/collection.webp" alt=""><span><strong>我的音乐收藏</strong><small>文艺淏 · <span id="side-count">—</span> 首歌曲</small></span><svg class="icon library-speaker" aria-hidden="true"><use href="/music/assets/icons.svg#audio-lines"/></svg></button>
+      <button class="library-playlist active" data-view="all" type="button"><span class="library-cover cover-collage" aria-hidden="true"></span><span><strong>我的音乐收藏</strong><small>文艺淏 · <span id="side-count">—</span> 首歌曲</small></span><svg class="icon library-speaker" aria-hidden="true"><use href="/music/assets/icons.svg#audio-lines"/></svg></button>
       <button class="library-playlist" data-view="liked" type="button"><span class="liked-art"><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#heart"/></svg></span><span><strong>我喜欢的音乐</strong><small><span id="liked-count">0</span> 首 · 保存在此浏览器</small></span></button>
+      <div class="sidebar-divider"></div>
+      <div class="sidebar-section-heading"><h3>优选 UP 主</h3><span lang="en">UPLOADER PLAYLISTS</span></div>
+      <div id="uploader-playlists" class="uploader-playlists"></div>
       <div class="sidebar-divider"></div>
       <div class="sidebar-section-heading"><h3>最近播放</h3><span lang="en">RECENTLY PLAYED</span></div>
       <div id="recent-tracks" class="recent-tracks"><p class="sidebar-empty">听过的歌，会留在这里。</p></div>
@@ -47,17 +50,19 @@
       <div class="mobile-library-tabs" aria-label="音乐资料库"><button class="library-chip active" data-view="all" type="button" aria-pressed="true">全部歌曲</button><button class="library-chip" data-view="liked" type="button" aria-pressed="false">我喜欢的</button><button class="library-chip" data-view="recent" type="button" aria-pressed="false">最近播放</button></div>
 
       <section class="playlist-hero" aria-labelledby="playlist-title">
-        <div class="playlist-art"><img id="playlist-cover" src="/music/artwork/collection.webp" alt="收藏歌曲的封面拼图" fetchpriority="high"><span class="playlist-art-mark" aria-hidden="true"><svg class="icon"><use href="/music/assets/icons.svg#audio-lines"/></svg></span></div>
+        <div class="playlist-art"><div id="playlist-cover" class="cover-collage" role="img" aria-label="收藏歌曲的封面拼图"></div><span class="playlist-art-mark" aria-hidden="true"><svg class="icon"><use href="/music/assets/icons.svg#audio-lines"/></svg></span></div>
         <div class="playlist-intro"><p class="playlist-type">个人歌单 <span lang="en">PERSONAL PLAYLIST</span></p><h1 id="playlist-title">我的音乐收藏</h1><p class="playlist-description" id="playlist-description">喜欢的旋律，值得一听再听。</p><p class="playlist-meta"><span class="owner-mark" aria-hidden="true">W</span><strong>文艺淏</strong><span class="meta-dot">·</span><span id="playlist-total">— 首歌曲</span><span class="meta-dot">·</span><span id="playlist-duration">来自 B站的声音</span></p></div>
       </section>
 
       <div class="playlist-body">
+        <div class="uploader-toolbar"><label for="uploader-select">选择歌单</label><select id="uploader-select" aria-label="选择 UP 主歌单"><option value="all">我的音乐收藏</option></select><button id="random-play" class="random-play" type="button"><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#shuffle"/></svg>随机播放</button></div>
         <div class="playlist-toolbar"><button id="featured-play" class="hero-play" type="button" aria-label="播放歌单"><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#play"/></svg></button><label class="shuffle-control" title="随机播放"><input id="shuffle" type="checkbox" aria-label="随机播放"><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#shuffle"/></svg></label><button id="mobile-repeat" class="icon-button mobile-repeat" type="button" aria-label="列表循环，点击切换单曲循环" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#repeat"/></svg></button><span class="toolbar-note">随时随地，听你喜欢。</span><button id="queue-toggle" class="icon-button queue-toggle" type="button" aria-label="显示或隐藏正在播放面板" aria-controls="now-panel" aria-expanded="true"><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#panel-right-open"/></svg></button></div>
         <p id="playback-error" class="playback-error" role="status" hidden></p>
         <section class="picks-section" id="picks-section" aria-labelledby="picks-heading"><div class="section-heading"><h2 id="picks-heading">从这里开始听</h2><span lang="en">IN YOUR COLLECTION</span></div><div id="quick-picks" class="quick-picks"></div></section>
         <div class="collection-head"><div><h2 id="collection-title">全部歌曲 <span id="count">—</span></h2><p id="filter-description" hidden></p></div><span class="list-label"><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#layout-list"/></svg> 列表</span></div>
         <div class="table-head" aria-hidden="true"><span>#</span><span>标题</span><span>来源 UP 主</span><span></span><svg class="icon"><use href="/music/assets/icons.svg#clock-3"/></svg></div>
         <div id="tracks" class="track-list"></div>
+        <button id="load-more" class="load-more" type="button" hidden>显示更多</button>
         <p id="empty" class="empty" hidden>没有找到匹配的曲目，换个关键词试试。</p>
         <footer class="music-footer"><span>文艺淏的音乐角落 <span lang="en">A LITTLE SPACE FOR MUSIC.</span></span><a href="https://space.bilibili.com/51126650" target="_blank" rel="noopener noreferrer">在 B站发现更多 <svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#arrow-up-right"/></svg></a></footer>
       </div>
@@ -65,7 +70,7 @@
 
     <aside id="now-panel" class="now-panel panel" aria-labelledby="now-heading">
       <div class="now-heading"><h2 id="now-heading">正在播放</h2><button id="queue-close" class="icon-button" type="button" aria-label="关闭正在播放面板"><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#x"/></svg></button></div>
-      <div class="now-content"><div id="now-art" class="now-art"><img id="now-cover" src="/music/artwork/collection.webp" alt="当前歌曲封面"><span class="art-equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i></span></div>
+      <div class="now-content"><div id="now-art" class="now-art"><img id="now-cover" src="/music/assets/cover-placeholder.svg" alt="当前歌曲封面"><span class="art-equalizer" aria-hidden="true"><i></i><i></i><i></i><i></i></span></div>
       <div class="now-song-heading"><div><h3 id="now-title">选一首，开始听。</h3><p id="now-artist">你的音乐，随时开始</p></div><button id="now-like" class="icon-button like-button" type="button" aria-label="喜欢当前歌曲" aria-pressed="false" disabled><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#heart"/></svg></button></div>
       <p id="now-playing-copy" class="now-caption">来自文艺淏的音乐收藏</p>
       <div class="source-card"><span class="source-card-label">关于这个版本 <span lang="en">SOURCE</span></span><strong id="source-author">Bilibili</strong><p id="source-title">选一首歌，看看它来自哪里。</p><a id="source-mv" href="https://www.bilibili.com/" target="_blank" rel="noopener noreferrer">在 B站观看 MV <svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#arrow-up-right"/></svg></a></div>
@@ -75,7 +80,7 @@
   </main>
 
   <div class="player-dock" id="dock" role="region" aria-label="播放控制">
-    <div class="dock-track"><div class="dock-thumb" id="dock-thumb"><img id="dock-cover" src="/music/artwork/collection.webp" alt="" width="56" height="56"></div><div class="dock-copy"><strong id="dock-title">尚未选择歌曲</strong><span id="dock-artist">你的音乐，随时开始</span></div><button id="dock-like" class="icon-button like-button" type="button" aria-label="喜欢当前歌曲" aria-pressed="false" disabled><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#heart"/></svg></button></div>
+    <div class="dock-track"><div class="dock-thumb" id="dock-thumb"><img id="dock-cover" src="/music/assets/cover-placeholder.svg" alt="" width="56" height="56"></div><div class="dock-copy"><strong id="dock-title">尚未选择歌曲</strong><span id="dock-artist">你的音乐，随时开始</span></div><button id="dock-like" class="icon-button like-button" type="button" aria-label="喜欢当前歌曲" aria-pressed="false" disabled><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#heart"/></svg></button></div>
     <div class="dock-center"><div class="dock-controls"><button id="dock-shuffle" class="icon-button" type="button" aria-label="随机播放" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#shuffle"/></svg></button><button id="prev" class="icon-button" type="button" aria-label="上一首"><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#skip-back"/></svg></button><button id="play" class="dock-play" type="button" aria-label="播放" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#play"/></svg></button><button id="next" class="icon-button" type="button" aria-label="下一首"><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#skip-forward"/></svg></button><button id="repeat" class="icon-button" type="button" aria-label="列表循环，点击切换单曲循环" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#repeat"/></svg></button></div><div class="progress-wrap"><span id="elapsed">0:00</span><input id="progress" type="range" min="0" max="1000" value="0" aria-label="播放进度" disabled><span id="duration">—:—</span></div></div>
     <div class="dock-right"><label class="quality-control"><span>音质</span><select id="quality" aria-label="选择音质" disabled><option value="">自动</option></select></label><a id="mv" class="mv-button" href="https://www.bilibili.com/" target="_blank" rel="noopener noreferrer" hidden>MV <svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#arrow-up-right"/></svg></a><label class="volume-control"><svg class="icon" aria-hidden="true"><use href="/music/assets/icons.svg#volume-2"/></svg><input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" aria-label="音量"></label></div>
   </div>

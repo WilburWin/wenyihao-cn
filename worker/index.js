@@ -1,19 +1,23 @@
 import {Guestbook, repositories, json} from './community.js';
 import {createMusicHandler} from './music.js';
 import {createMusicAuthHandler} from './music-auth.js';
+import {createMusicCoverHandler} from './music-covers.js';
+import {createUploaderHandler} from './music-uploaders.js';
 import {createBilibiliFetch,musicApiTransport} from './music-transport.js';
 export {Guestbook};
 const games = new Set(['go', 'mahjong', 'billiards']);
 const musicHandlers=Object.fromEntries(['socket','fetch'].map(transport=>{
   const fetcher=createBilibiliFetch({transport});
-  return [transport,{audio:createMusicHandler({fetcher}),auth:createMusicAuthHandler({fetcher})}];
+  return [transport,{audio:createMusicHandler({fetcher}),auth:createMusicAuthHandler({fetcher}),cover:createMusicCoverHandler({fetcher}),uploaders:createUploaderHandler({fetcher})}];
 }));
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     if(url.pathname.startsWith('/api/music/')){
       const transport=musicApiTransport(env),handlers=musicHandlers[transport];
-      const response=await (url.pathname.startsWith('/api/music/auth/')?handlers.auth(request,env):handlers.audio(request,env,ctx));
+      const response=await (url.pathname.startsWith('/api/music/auth/')?handlers.auth(request,env):
+        url.pathname==='/api/music/uploaders'?handlers.uploaders(request,env,ctx):
+        url.pathname==='/api/music/cover'?handlers.cover(request,env,ctx):handlers.audio(request,env,ctx));
       response.headers.set('X-Music-Api-Transport',transport);
       return response;
     }

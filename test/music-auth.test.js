@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createMusicAuthHandler,sealMusicSession,openMusicSession,readMusicSession} from '../worker/music-auth.js';
 
-const origin='https://wenyihao.cn';
+const origin='https://example.com';
 const env={MUSIC_SESSION_KEY:Buffer.alloc(32,7).toString('base64url')};
 const request=(action,headers={},method=action==='status'?'GET':'POST')=>new Request(origin+'/api/music/auth/'+action,{method,headers:{Origin:origin,...headers}});
 const cookieFrom=(response,name)=>response.headers.getSetCookie().find(value=>value.startsWith(name+'=')).split(';')[0];
@@ -85,7 +85,7 @@ test('login enforces origin, HTTPS, method, optional config, QR expiry and reque
   const handler=createMusicAuthHandler({now:()=>now,fetcher:async()=>{fetches++;return Response.json({code:0,data:{url:'https://passport.bilibili.com/test',qrcode_key:'test'}});}});
   assert.equal((await handler(request('start',{Origin:'https://evil.test'}),env)).status,403);
   assert.equal((await handler(request('start',{},'GET'),env)).status,405);
-  assert.equal((await handler(new Request('http://wenyihao.cn/api/music/auth/start',{method:'POST',headers:{Origin:'http://wenyihao.cn'}}),env)).status,400);
+  assert.equal((await handler(new Request('http://example.com/api/music/auth/start',{method:'POST',headers:{Origin:'http://example.com'}}),env)).status,400);
   assert.equal((await handler(request('start'),{})).status,503);
   assert.equal((await (await handler(request('status'),{})).json()).configured,false);
   assert.equal((await handler(request('start'),env)).status,200);

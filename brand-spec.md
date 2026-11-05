@@ -8,6 +8,7 @@
 | B站 | 蓝粉配色、小电视外框、天线与扬声器 | 浅蓝 `#f4fbff`、粉色 `#fb7299` | `public/bilibili/bili.css` |
 | 游戏人生 | 霓虹招牌、彩色街机、透视地面 | 紫黑 `#130d1c`、粉绿灯光 | `public/games/neon.css` |
 | 照片墙 | 暖白墙面、相纸、胶带、柔和投影 | 暖白 `#f4f1eb`、米白相纸 | `public/photos/wall.css` |
+| 音乐 | 三栏播放器、封面网格、常驻播放条 | 黑灰 `#121212`、绿色 `#1ed760` | `public/music/music.css` |
 | 留言板 | 浅灰蓝墙面、浅橡木框软木板、图钉便签 | 灰蓝 `#eef2f3`、浅木色、浅黄纸张 | `public/guestbook/notes.css` |
 
 正文使用系统字体 Segoe UI / Microsoft YaHei；控制台辅助信息使用 Consolas；照片标题使用楷体回退字体。导航统一由 `public/shared/navigation.css` 控制，并在页面样式后加载。

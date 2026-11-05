@@ -2,11 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createMusicHandler,isAudioHost,audioChoices} from '../worker/music.js';
 import {sealMusicSession} from '../worker/music-auth.js';
+import {uploaderTrackId} from '../worker/music-catalog.js';
 
 const track={id:'0123456789abcdef',bvid:'BV1B34y1h78S',title:'Test song',artist:'Artist',page:2,confirmed:true};
-function setup({rejectFirstStream=false,blocked=false,expiredLogin=false,cacheStore=()=>null}={}){
+function setup({rejectFirstStream=false,blocked=false,expiredLogin=false,cacheStore=()=>null,live=false,ownerMid='11'}={}){
   const requests=[];let streamCalls=0;
-  const env={MUSIC_SESSION_KEY:Buffer.alloc(32,8).toString('base64url'),ASSETS:{fetch:async()=>Response.json({tracks:[track]})}};
+  const env={MUSIC_SESSION_KEY:Buffer.alloc(32,8).toString('base64url'),ASSETS:{fetch:async()=>Response.json({tracks:[track],playlists:live?[{uid:'11',source:'live'}]:[]})}};
   const handler=createMusicHandler({cacheStore,fetcher:async(value,options)=>{
     const url=new URL(value);requests.push({url,options});
     if(url.hostname.endsWith('.bilivideo.com')){
@@ -17,7 +18,7 @@ function setup({rejectFirstStream=false,blocked=false,expiredLogin=false,cacheSt
     if(url.pathname.endsWith('/spi'))return Response.json({code:0,data:{b_3:'public-session',b_4:'public-session-4'}});
     if(url.pathname.endsWith('/view')){
       if(blocked)return Response.json({code:-412},{status:412});
-      return Response.json({code:0,data:{cid:100,bvid:track.bvid,title:'Video',pages:[{cid:100,duration:12},{cid:200,duration:24}],owner:{name:'UP'}}});
+      return Response.json({code:0,data:{cid:100,bvid:track.bvid,title:'Video',pages:[{cid:100,duration:12},{cid:200,duration:24}],owner:{name:'UP',mid:ownerMid}}});
     }
     const account=new Headers(options.headers).get('Cookie')?.includes('SESSDATA=');
     if(url.pathname.endsWith('/nav'))return Response.json({code:account?0:-101,data:{isLogin:account&&!expiredLogin,wbi_img:{img_url:'https://i0.hdslb.com/bfs/wbi/0123456789abcdef0123456789abcdef.png',sub_url:'https://i0.hdslb.com/bfs/wbi/fedcba9876543210fedcba9876543210.png'}}});
@@ -27,10 +28,10 @@ function setup({rejectFirstStream=false,blocked=false,expiredLogin=false,cacheSt
     ],...(account?{flac:{audio:{id:30251,bandwidth:900000,codecs:'fLaC',mimeType:'audio/mp4',baseUrl:'https://test.bilivideo.com/flac.m4s'}}}:{})}}});
     throw Error('Unexpected fetch '+url);
   }});
-  const request=(path='/resolve',init={})=>handler(new Request('https://wenyihao.cn/api/music'+path,init),env,{});
+  const request=(path='/resolve',init={})=>handler(new Request('https://example.com/api/music'+path,init),env,{});
   const accountCookie=async name=>{
     const scope=crypto.randomUUID();
-    return '__Host-wyh_bili='+await sealMusicSession({scope,cookie:'SESSDATA='+name,expiresAt:Date.now()+60000},new Request('https://wenyihao.cn'),env);
+    return '__Host-wyh_bili='+await sealMusicSession({scope,cookie:'SESSDATA='+name,expiresAt:Date.now()+60000},new Request('https://example.com'),env);
   };
   return {requests,request,accountCookie};
 }
@@ -100,4 +101,16 @@ test('revoked account stops resolution and clears this site session cookie',asyn
   const response=await request('/resolve?id='+track.id,{headers:{Cookie:await accountCookie('revoked')}});
   assert.equal(response.status,401);assert.match(response.headers.get('Set-Cookie'),/Max-Age=0/);
   assert.equal(requests.some(r=>r.url.pathname.endsWith('/playurl')),false);
+});
+
+test('live uploader audio validates video ownership before extraction and preserves authorization on Range requests',async()=>{
+  const id=uploaderTrackId('11',track.bvid),query='id='+id+'&uid=11&bvid='+track.bvid;
+  const {request}=setup({live:true});
+  const response=await request('/resolve?'+query);assert.equal(response.status,200);
+  const data=await response.json();assert.equal(data.duration,12);assert.equal(data.title,'Video');
+  assert.equal(new URL(data.streamUrl,'https://example.com').searchParams.get('uid'),'11');
+  assert.equal((await request('/audio?'+query,{headers:{Range:'bytes=10-13'}})).status,206);
+  const rejected=setup({live:true,ownerMid:'22'});
+  assert.equal((await rejected.request('/resolve?'+query)).status,403);
+  assert.equal(rejected.requests.some(call=>call.url.pathname.endsWith('/playurl')),false);
 });

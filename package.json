@@ -1,5 +1,5 @@
 {
-  "name": "wenyihao-cn",
+  "name": "personal-site",
   "private": true,
   "type": "module",
   "scripts": {
@@ -7,7 +7,8 @@
     "deploy": "wrangler deploy",
     "test": "node --test test/*.test.js",
     "check": "node scripts/check.mjs",
-    "music:studio": "node scripts/music-studio.mjs"
+    "music:studio": "node scripts/music-studio.mjs",
+    "music:playlists": "node scripts/publish-uploader-playlists.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"

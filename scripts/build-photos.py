@@ -1,10 +1,17 @@
-"""Regenerate web photos after adding images to wenyihao/照片. Requires Pillow."""
+"""Generate public WebP photos from a configured source directory. Requires Pillow."""
 import json
+import os
 from pathlib import Path
 from PIL import Image, ImageOps
 
 root = Path(__file__).resolve().parent.parent
-source = root / 'wenyihao' / '照片'
+config_path = root / 'config' / 'photos.local.json'
+config = json.loads(config_path.read_text(encoding='utf-8')) if config_path.exists() else {}
+source = Path(os.environ.get('PHOTO_SOURCE_DIR') or config.get('source') or 'assets-local/photos')
+if not source.is_absolute():
+    source = root / source
+if not source.is_dir():
+    raise SystemExit('Photo source directory not found. Set PHOTO_SOURCE_DIR or config/photos.local.json before building.')
 dest = root / 'public' / 'photos' / 'images'
 dest.mkdir(parents=True, exist_ok=True)
 featured = ['学术知性风', '户外生活风', '电影氛围风', '商务精英风']
