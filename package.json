@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "node scripts/deploy.mjs",
-    "deploy:site": "wrangler deploy",
-    "deploy:music": "wrangler deploy --config wrangler.music.jsonc",
+    "deploy:site": "node scripts/deploy.mjs --only=site",
+    "deploy:music": "node scripts/deploy.mjs --only=music",
     "test": "node --test test/*.test.js",
     "check": "node scripts/check.mjs",
     "music:studio": "node scripts/music-studio.mjs",

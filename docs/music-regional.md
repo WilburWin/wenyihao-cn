@@ -26,6 +26,10 @@ node scripts/deploy.mjs --bootstrap
 
 之后在 Git 自动构建的部署命令使用 `npm run deploy`，本地部署也使用该命令。脚本验证两个配置的服务名称，先部署音乐 Worker、成功后部署主站。两个 Worker 不是一个原子部署，更新接口时应保持新旧服务兼容。
 
+Workers Builds 会注入主站专用的 `WRANGLER_CI_OVERRIDE_NAME` 和 `WRANGLER_CI_MATCH_TAG`。部署脚本只在音乐 Worker 子进程中移除这两个变量，保留认证、账号、分支和其他 CI 配置；主站子进程继续保留原名称和 tag 校验。每个阶段同时明确传入目标名称，且在开始前拒绝非主站的 CI 项目。不要修改音乐配置的名称来匹配主站，也不要删除 `GameRoom` / `Guestbook` 或增加删除类的迁移。
+
+可用 `node scripts/deploy.mjs --dry-run` 检查两个打包目标，不上传或改变部署。`npm run deploy:music` 与 `npm run deploy:site` 使用同一部署包装，分别只更新一个目标。
+
 不要继续只用 `npx wrangler deploy` 更新整个项目，否则仅主站更新，音乐逻辑和香港配置不会更新。已有自动构建命令需在 Cloudflare 控制台的主站 Worker → 设置 → 构建中修改；构建令牌需具有两个 Worker 的部署权限。CLI 当前登录权限与构建令牌是不同的。
 
 `npm run dev` 不需要第二个服务，也不继承生产登录密钥。开发配置将转发 Host 明确设为 `localhost`，避免 Wrangler 根据生产路由把本地 HTTP 当成线上域名，从而误用区域后端或触发 HTTPS 检查；预览使用终端给出的 `http://localhost:<端口>/`。
@@ -49,5 +53,7 @@ node scripts/deploy.mjs --bootstrap
 两首歌曲均返回 AAC 64K / 132K / 192K；各自 1MB 的 Range 读取返回 206 和正确数据，包含响应头等待的总耗时约 1.88 秒、1.13 秒。二维码生成返回 200，轮询为 waiting，退出清除由主站完成；未进行真实账号扫码确认。优选入口上三款游戏的 ping 中位数仍约 100–103ms。本地 localhost 单进程验证会话配置和取流均为 200。
 
 本次已直接部署两个 Worker；没有推送 Git。当前 CLI 登录不能读取或修改 Workers Builds 触发器（API 403），桌面控制工具也未连接，因此控制台中将部署命令改为 `npm run deploy` 仍需站点维护者完成。
+
+同日的 Git 构建曾因上述 CI 名称覆盖，将音乐包误指向主站，Cloudflare 以缺少现有 `GameRoom` 的 10064 错误拒绝上传。修复后 79 项测试通过，带主站名称覆盖和 tag 的模拟 CI dry-run 通过；使用真实主站 CI 名称和 tag、当前本机 OAuth 权限实际部署也成功，两个目标分别更新，主站仍包含原有 Durable Objects。随后首页、登录配置状态和香港取流均返回 200。此验证没有使用云端构建令牌，Git 构建仍需新提交触发以验收其环境。将修复提交到 GitHub 后由新提交触发构建；重试旧提交不会取得新脚本。
 
 参考：[Cloudflare Placement](https://developers.cloudflare.com/workers/configuration/placement/)、[HTTP service bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/http/)。
