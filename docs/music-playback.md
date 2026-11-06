@@ -26,13 +26,15 @@
 
 ## B站 API 的 Socket 传输试验
 
+当前生产音乐请求由独立 Worker 处理，配置文件是 `wrangler.music.jsonc`；主站的同名传输变量用于本地开发与回退链路。日常部署使用 `npm run deploy` 更新两者。主站保存原有登录密钥，通过私有服务完成会话加解密，不将密钥复制到音乐 Worker。音乐请求的区域偏好、同源转发和回退见 [音乐香港部署](music-regional.md)。
+
 `wrangler.jsonc` 中 `MUSIC_API_TRANSPORT` 默认设为 `socket`。网站入口通过 `worker/music-transport.js` 将 `api.bilibili.com` 和 `passport.bilibili.com` 的 JSON 请求交给锁定版本 `stealth-fetch@0.2.2` 的 `/lite` 客户端，以 `cloudflare:sockets` 的平台 TLS 直接发送 HTTP/1.1 请求，避开原生 `fetch()` 的 HTTP 请求头注入路径。不使用 NAT64、第三方代理或第三方 DNS 服务。
 
 二维码生成、轮询、登录校验、设备信息、封面详情、WBI 密钥和音轨解析统一使用该传输。媒体 CDN 仍使用原生流式 `fetch()`，保留 Range/206、超时和已有的目标主机限制，账号 Cookie 不发送到媒体主机。封面图片使用原生 fetch 读取固定图床。网站、GitHub、留言板和游戏请求不使用这个客户端。
 
 适配器将库的 `HttpResponse` 转换为标准 `Response`，分别保留多条 `Set-Cookie`，接入取消信号、15 秒接口超时及响应读取超时。非成功响应及时取消流；库的自动重试关闭，412/429 继续交给已有冷却机制处理，不自动换传输重复撞接口。两种传输使用相同的 UA、Referer 和 Accept，不将访客的转发 IP 请求头带给 B站。
 
-音乐接口响应的 `X-Music-Api-Transport: socket` 表示服务端选用了 Socket 传输，不代表上游请求已经成功。如果需要回退，将 `wrangler.jsonc` 的 `MUSIC_API_TRANSPORT` 改为 `fetch`，提交并重新部署即可。此开关由服务器配置决定，网页访客不能用查询参数切换。保持原有 `MUSIC_SESSION_KEY` 即可，无需重新生成密钥。
+音乐接口响应的 `X-Music-Api-Transport: socket` 表示服务端选用了 Socket 传输，不代表上游请求已经成功。如果需要回退传输，将生产后端 `wrangler.music.jsonc` 的 `MUSIC_API_TRANSPORT` 改为 `fetch`，提交并重新部署即可；主站本地链路使用 `wrangler.jsonc` 的变量。此开关由服务器配置决定，网页访客不能用查询参数切换。保持原有 `MUSIC_SESSION_KEY` 即可，无需重新生成密钥。
 
 这项改动仍然从 Cloudflare 出口请求 B站，不会自动获得访客浏览器的 B站登录状态，也不能保证消除 412 或取得 Hi-Res。Socket 和原生 fetch 的出口及 TLS 也可能不同，不能将两者成功率的差异直接归因于某一个请求头。线上效果需在部署后验证；本地成功不等于公网成功。
 

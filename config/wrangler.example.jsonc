@@ -1,7 +1,7 @@
 // New deployments only. Do not use this example to rename an existing Worker.
 {
   "name": "personal-site",
-  "main": "../worker/index.js",
+  "main": "../worker/entrypoint.js",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
   "vars": { "MUSIC_API_TRANSPORT": "socket" },

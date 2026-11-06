@@ -9,7 +9,7 @@
 | `/api/github` | GitHub REST API 分页读取公开仓库，缓存 10 分钟 |
 | `/api/guestbook` | `Guestbook` Durable Object 读取、发布和管理删除 |
 | `/api/music/cover` | 已发布视频封面，匿名读取、图片代理和 6 小时边缘缓存 |
-| `/api/music/*` | 音轨解析、同源流式媒体代理与独立登录会话 |
+| `/api/music/*` | 主站保持同源入口，内部转发至独立音乐 Worker；状态与退出在主站处理 |
 | 本地 `127.0.0.1:8790` | 歌单工作室，编辑候选和发布静态 JSON，不参与线上播放 |
 
 `wrangler.jsonc` 让 API 与实时路径优先进入 Worker，其余由静态资源处理。无需 Pages 或 D1。当前 `GameRoom` 与 `Guestbook` 均由 SQLite Durable Objects 迁移创建。
@@ -29,6 +29,8 @@
 留言昵称最多 24 字，正文 1–200 字，每页 25 条。提交需同源 JSON 请求，使用诱捕字段、请求体大小限制、每 IP 一分钟一次及每日总量 500 条限制。限流键使用日期与 IP 的摘要，不保存原始 IP。删除需管理令牌及同源检查。
 
 音乐解析仅处理配置歌单中的资源，媒体代理限制 CDN 主机、重定向和 Range。JSON 请求默认经 Socket，媒体经原生流式 fetch。封面从指定 B站图床读取，按视频缓存，由浏览器控制并发并合并重复图片；服务端不跨请求共享未完成的 I/O，不需要仓库中的图片文件。扫码会话由 Worker 加密后放入当前浏览器 HttpOnly Cookie，Worker 临时解密使用，不共享账号；详见 [音乐实现](music-playback.md)。
+
+`worker/entrypoint.js` 导出主站入口、原有两个 Durable Object 类和私有 `MusicSiteSupport` 服务入口。`worker/music-backend.js` 通过默认 fetch 接收内部音乐请求，以 `aws:ap-east-1` 为执行位置偏好。主站通过 `MUSIC_BACKEND.fetch()` 传递原请求；后端通过 `SITE_SUPPORT` 只读取已发布歌单、取得会话配置和执行会话加解密，密钥继续只保存在主站。后端没有公网域名或 workers.dev 入口。匿名播放没有 Cookie 时不调用会话解密 RPC；登录状态与退出不访问 B站，留在主站减少往返。部署与验证边界见 [音乐香港部署](music-regional.md)。
 
 本地工作室只监听回环地址并检查 Host 与 Origin。候选优先从本地缓存读取，一次只进行一个联网搜索，失败不自动重试、不设额外冷却。网站扫码和音轨接口有各自的风控退避，不受工作室设置影响。
 

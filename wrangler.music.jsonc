@@ -1,0 +1,13 @@
+{
+  "name": "wenyihao-cn-music",
+  "main": "worker/music-backend.js",
+  "workers_dev": false,
+  "preview_urls": false,
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "placement": { "region": "aws:ap-east-1" },
+  "vars": { "MUSIC_API_TRANSPORT": "socket" },
+  "services": [
+    { "binding": "SITE_SUPPORT", "service": "wenyihao-cn", "entrypoint": "MusicSiteSupport" }
+  ]
+}

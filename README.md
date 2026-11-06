@@ -39,7 +39,7 @@ node scripts/music-session-key.mjs --local
 
 ## 部署
 
-架构为 **Cloudflare Workers + Static Assets + SQLite Durable Objects**，入口为 `worker/index.js`，静态目录为 `public/`，部署配置为 `wrangler.jsonc`。网页没有额外的打包步骤，Worker 依赖由 Wrangler 打包。
+架构为 **Cloudflare Workers + Static Assets + SQLite Durable Objects**，平台入口为 `worker/entrypoint.js`，网站路由和房间在 `worker/index.js`，静态目录为 `public/`。主站配置为 `wrangler.jsonc`，独立音乐后端配置为 `wrangler.music.jsonc`。网页没有额外的打包步骤，Worker 依赖由 Wrangler 打包。
 
 在 Workers 的 Git 构建配置中连接仓库，并核对生产分支、项目根目录及命令：
 
@@ -47,7 +47,7 @@ node scripts/music-session-key.mjs --local
 | --- | --- |
 | 根目录 | 仓库根目录 |
 | 构建命令 | `npm run check` |
-| 部署命令 | `npx wrangler deploy` |
+| 部署命令 | `npm run deploy` |
 | 依赖安装 | 使用 `package-lock.json` 安装依赖 |
 
 绑定自定义域名后，向配置的生产分支推送即可触发更新。手动部署使用：
@@ -56,6 +56,8 @@ node scripts/music-session-key.mjs --local
 npx wrangler login
 npm run deploy
 ```
+
+`npm run deploy` 先更新独立音乐 Worker，再更新主站；若音乐部署失败则停止，不更新主站。已有 Git 集成也须将部署命令从 `npx wrangler deploy` 改为 `npm run deploy`，仅执行前者不会更新音乐后端。构建令牌需要能部署这两个 Worker。首次建立两者的服务绑定时使用 `node scripts/deploy.mjs --bootstrap`，先以旧音乐链路发布主站的私有会话入口，再部署音乐和最终主站。后续更新无需 `--bootstrap`。
 
 已有站点继续使用根目录的配置。**保留 Worker 名称、Durable Objects 绑定和迁移记录**，避免部署到新目标或改变数据归属。全新站点可从 `config/wrangler.example.jsonc` 开始，替换名称后执行 `npx wrangler deploy --config config/wrangler.example.jsonc`；示例中的资源路径相对于该配置文件。
 
@@ -66,6 +68,7 @@ npm run deploy
 | `MUSIC_SESSION_KEY` | 加密每位访客独立的 B站登录会话，未配置时禁用扫码登录 |
 | `GUESTBOOK_ADMIN_TOKEN` | 留言删除授权，未配置时关闭删除接口 |
 | `MUSIC_API_TRANSPORT` | 普通变量，默认 `socket`；可设为 `fetch` 后重新部署以回退传输 |
+| `MUSIC_BACKEND_MODE` | 主站变量，`regional` 使用独立音乐服务；`local` 回退主站处理 |
 
 生产音乐密钥可直接通过管道写入，避免手动复制：
 
@@ -76,6 +79,8 @@ node scripts/music-session-key.mjs | npx wrangler secret put MUSIC_SESSION_KEY
 已有生产密钥无需重复生成；更换会使现有登录会话失效。不要把机密写进前端、示例配置或 Git。确认变量配置属于当前域名使用的 Worker，并已进入生效的部署版本。`/api/music/auth/status` 可以检查配置状态，不会返回密钥。
 
 音乐 JSON API 使用 Socket 传输，媒体 CDN 保留原生流式请求。它仍从 Cloudflare 出口访问 B站，不能保证所有地区、歌曲或账号可用。独立音轨、CORS、会话加密、412 排查与实测边界见 [音乐实现](docs/music-playback.md)。
+
+独立音乐服务采用香港区域偏好，浏览器仍访问主域名，无需新增 DNS 或重新配置登录密钥。主站保留会话加密和解密，服务绑定传递所需数据；账号凭据仍只在请求中临时使用。配置、验收与回退见 [音乐香港部署](docs/music-regional.md)。本地开发继续在本机处理音乐，无需启动第二个 Worker。
 
 ## 内容维护
 
@@ -136,6 +141,7 @@ config/                 通用部署示例、图片配置示例和本机配置
 docs/                   架构、设计、维护与建站经验
 GAME/                   原始参考与旧游戏实现
 wrangler.jsonc          当前站点部署配置与数据迁移
+wrangler.music.jsonc    独立音乐后端与香港区域偏好
 brand-spec.md           全站视觉规范及素材来源
 ```
 

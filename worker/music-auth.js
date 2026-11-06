@@ -18,6 +18,11 @@ function sessionKeyConfig(env){
   if(!/^[A-Za-z0-9_-]{43}$/.test(raw))return {issue:'invalid_format',message:'线上已读到 MUSIC_SESSION_KEY，但格式不正确。请重新生成并替换为 43 位密钥，不要包含引号或命令文本，然后部署。'};
   return {raw,issue:null,message:null};
 }
+export async function musicSessionConfiguration(env){
+  if(env.MUSIC_SESSION_CRYPTO)return env.MUSIC_SESSION_CRYPTO.configuration();
+  const {issue,message}=sessionKeyConfig(env);
+  return {issue,message};
+}
 async function encryptionKey(env){
   const {raw,issue}=sessionKeyConfig(env);
   if(issue)return null;
@@ -28,6 +33,7 @@ async function encryptionKey(env){
   return keyCache.get(raw);
 }
 export async function sealMusicSession(payload,request,env,purpose='session'){
+  if(env.MUSIC_SESSION_CRYPTO)return env.MUSIC_SESSION_CRYPTO.seal(payload,new URL(request.url).origin,purpose);
   const key=await encryptionKey(env);
   if(!key)throw Error('Music session encryption is not configured');
   const iv=crypto.getRandomValues(new Uint8Array(12));
@@ -37,8 +43,13 @@ export async function sealMusicSession(payload,request,env,purpose='session'){
 }
 export async function openMusicSession(token,request,env,purpose='session',now=Date.now()){
   try{
+    if(!token||token.length>3800)return null;
+    if(env.MUSIC_SESSION_CRYPTO){
+      const payload=await env.MUSIC_SESSION_CRYPTO.open(token,new URL(request.url).origin,purpose);
+      return payload?.expiresAt>now?payload:null;
+    }
     const key=await encryptionKey(env);
-    if(!key||!token||token.length>3800)return null;
+    if(!key)return null;
     const [iv,cipher,...extra]=token.split('.');if(!iv||!cipher||extra.length)return null;
     const aad=encoder.encode(`${new URL(request.url).origin}:music:${purpose}:v1`);
     const bytes=await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(iv),additionalData:aad},key,unb64(cipher));
@@ -96,7 +107,7 @@ export function createMusicAuthHandler({fetcher=(...args)=>fetch(...args),now=()
     if(request.method!==expected)return reply({message:'不支持的操作。'},405,[],{Allow:expected});
     if(request.headers.get('Sec-Fetch-Site')==='cross-site'||(action!=='status'&&request.headers.get('Origin')!==url.origin))return reply({message:'请从本站发起登录操作。'},403);
     if(url.protocol!=='https:'&&!['localhost','127.0.0.1','[::1]'].includes(url.hostname))return reply({message:'登录需要 HTTPS。'},400);
-    const config=sessionKeyConfig(env),configured=Boolean(await encryptionKey(env));
+    const config=await musicSessionConfiguration(env),configured=!config.issue;
     if(action==='logout')return reply({loggedIn:false},200,[setCookie(request,'',0),setCookie(request,'',0,true)]);
     if(action==='status'){
       const session=await readMusicSession(request,env);

@@ -1,10 +1,12 @@
 {
   "name": "wenyihao-cn",
-  "main": "worker/index.js",
+  "main": "worker/entrypoint.js",
   "workers_dev": true,
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
-  "vars": { "MUSIC_API_TRANSPORT": "socket", "GAME_SITE_ORIGIN": "https://wenyihao.cn", "SITE_EDGE_ORIGINS": "https://rt.wenyihao.cn" },
+  "dev": { "host": "localhost" },
+  "vars": { "MUSIC_API_TRANSPORT": "socket", "MUSIC_BACKEND_MODE": "regional", "GAME_SITE_ORIGIN": "https://wenyihao.cn", "SITE_EDGE_ORIGINS": "https://rt.wenyihao.cn" },
+  "services": [{ "binding": "MUSIC_BACKEND", "service": "wenyihao-cn-music" }],
   "routes": [
     { "pattern": "wenyihao.cn", "custom_domain": true },
     { "pattern": "rt.wenyihao.cn/*", "zone_name": "wenyihao.cn" }
