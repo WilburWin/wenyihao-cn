@@ -1,10 +1,15 @@
 {
   "name": "wenyihao-cn",
   "main": "worker/index.js",
+  "workers_dev": true,
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
-  "vars": { "MUSIC_API_TRANSPORT": "socket" },
-  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/realtime/*", "/api/*"] },
+  "vars": { "MUSIC_API_TRANSPORT": "socket", "GAME_SITE_ORIGIN": "https://wenyihao.cn", "SITE_EDGE_ORIGINS": "https://rt.wenyihao.cn" },
+  "routes": [
+    { "pattern": "wenyihao.cn", "custom_domain": true },
+    { "pattern": "rt.wenyihao.cn/*", "zone_name": "wenyihao.cn" }
+  ],
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/realtime/*", "/api/*", "/network/*"] },
   "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "GameRoom" }, { "name": "GUESTBOOK", "class_name": "Guestbook" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom"] }, { "tag": "v2-guestbook", "new_sqlite_classes": ["Guestbook"] }]
 }

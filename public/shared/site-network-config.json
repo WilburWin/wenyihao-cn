@@ -1,0 +1,5 @@
+{
+  "enabled": true,
+  "enabledFor": ["https://wenyihao.cn"],
+  "endpoints": ["https://rt.wenyihao.cn"]
+}

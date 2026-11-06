@@ -4,6 +4,8 @@ import {createMusicAuthHandler} from './music-auth.js';
 import {createMusicCoverHandler} from './music-covers.js';
 import {createUploaderHandler} from './music-uploaders.js';
 import {createBilibiliFetch,musicApiTransport} from './music-transport.js';
+import {allowedGameOrigin} from './game-network.js';
+import {siteNetworkRequest} from './site-network.js';
 export {Guestbook};
 const games = new Set(['go', 'mahjong', 'billiards']);
 const musicHandlers=Object.fromEntries(['socket','fetch'].map(transport=>{
@@ -12,7 +14,15 @@ const musicHandlers=Object.fromEntries(['socket','fetch'].map(transport=>{
 }));
 export default {
   async fetch(request, env, ctx) {
+    return siteNetworkRequest(request,env,ctx,application);
+  }
+};
+async function application(request, env, ctx) {
     const url = new URL(request.url);
+    if(url.pathname==='/network/ping'){
+      if(!['GET','HEAD'].includes(request.method))return json({message:'Read-only endpoint'},405);
+      return json({ok:true,nonce:(url.searchParams.get('nonce')||'').slice(0,100),colo:request.cf?.colo||null},200,{'X-Content-Type-Options':'nosniff'});
+    }
     if(url.pathname.startsWith('/api/music/')){
       const transport=musicApiTransport(env),handlers=musicHandlers[transport];
       const response=await (url.pathname.startsWith('/api/music/auth/')?handlers.auth(request,env):
@@ -32,13 +42,12 @@ export default {
       const [, , game, room] = url.pathname.split('/');
       if (!games.has(game) || !/^[1-9]\d{2}$/.test(room || '')) return new Response('Invalid room', {status:400});
       if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') return new Response('WebSocket required', {status:426});
-      if (request.headers.get('Origin') !== url.origin) return new Response('Origin rejected', {status:403});
+      if (!allowedGameOrigin(request,env)) return new Response('Origin rejected', {status:403});
       const id = env.ROOMS.idFromName(`${game}:${room}`);
       return env.ROOMS.get(id, {locationHint:'apac'}).fetch(request);
     }
     return env.ASSETS.fetch(request);
-  }
-};
+}
 
 export class GameRoom {
   constructor(ctx) {

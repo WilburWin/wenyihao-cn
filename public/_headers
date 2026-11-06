@@ -1,0 +1,15 @@
+/*
+  Access-Control-Allow-Origin: https://wenyihao.cn
+  Access-Control-Expose-Headers: Content-Length, Content-Range, ETag, Last-Modified
+
+/site-network-sw.js
+  Cache-Control: no-cache
+
+/shared/site-network.js
+  Cache-Control: no-cache
+
+/shared/site-network-core.js
+  Cache-Control: no-cache
+
+/shared/site-network-config.json
+  Cache-Control: no-cache

@@ -118,6 +118,10 @@ python scripts/music-metadata.py
 
 线上游戏代码位于 `public/games/`，实时兼容层为 `public/shared/realtime.js`，房间服务在 `worker/index.js`。`GAME/refs/` 和 `GAME/legacy/` 是参考与旧实现，不参与当前站点部署；`scripts/prepare.mjs` 是早期迁移工具，不是日常安装步骤。
 
+联机支持独立入口实测与自动选择，保留本站回退。CloudflareSpeedTest 的结果先通过 `python scripts/test-game-route.py --host <网站域名>` 验证实际 WebSocket RTT；候选域名配置在 `public/shared/realtime-config.json`，需要对应 DNS、证书及 Worker Route。仅改代码或把 IP 填进橙云记录不会完成优选，详见 [联机延迟排查](docs/game-latency.md)。
+
+整站页面、资源和公开读取接口也支持浏览器后台选线，配置位于 `public/shared/site-network-config.json`。地址栏不变，保留已有收藏和登录状态；首次访问完成 Service Worker 注册后，后续适合的请求可使用优选入口。音乐账号、音频与留言写入保持原同源链路，失败自动回退。部署、关闭与实测范围见 [整站自动选线](docs/site-network.md)。
+
 留言无需登录，提交后公开。设置管理机密后，站长可向 `DELETE /api/guestbook?id=<便签编号>` 发送本站 `Origin` 和 `Authorization: Bearer <管理令牌>` 删除便签。编号由读取接口返回，令牌只用于管理请求，不放入网页。正常代码部署保留现有 Durable Objects 数据。
 
 ## 项目结构
