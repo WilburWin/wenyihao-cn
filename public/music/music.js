@@ -78,7 +78,7 @@ function updateCurrent(track){
   $('#now-title').textContent=track.title;$('#now-artist').textContent=track.artist||track.author||'';
   covers.set($('#dock-cover'),coverOf(track),{priority:true});covers.set($('#now-cover'),coverOf(track),{priority:true});$('#now-cover').alt=track.title+' · 视频封面';
   if(changed){if(shuffledNext.some(item=>item.id===track.id))shuffledNext=shuffledNext.filter(item=>item.id!==track.id);else resetShuffle();}
-  if('mediaSession' in navigator&&'MediaMetadata' in window){navigator.mediaSession.metadata=new MediaMetadata({title:track.title,artist:track.artist||'',album:'wenyihao的音乐收藏',artwork:[{src:new URL(coverOf(track),location.origin).href}]});}
+  if('mediaSession' in navigator&&'MediaMetadata' in window){navigator.mediaSession.metadata=new MediaMetadata({title:track.title,artist:track.artist||'',album:'WenYiHao的音乐收藏',artwork:[{src:new URL(coverOf(track),location.origin).href}]});}
   render();
 }
 function syncControls(){
