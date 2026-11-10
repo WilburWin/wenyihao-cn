@@ -15,3 +15,5 @@ assets-local/
 __pycache__/
 *.pyc
 *.log
+.game-data/
+public/_backend/

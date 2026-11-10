@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,interactive-widget=resizes-content">
+  <meta name="description" content="粘贴百度网盘分享链接，按次下载；朋友也可凭访问码查看共享文件。">
+  <meta name="referrer" content="no-referrer"><meta name="theme-color" content="#f3f5f2">
+  <title>工具 · 文艺淏</title>
+  <link rel="stylesheet" href="/rooms.css"><link rel="stylesheet" href="/shared/navigation.css"><link rel="stylesheet" href="/tools/tools.css">
+  <script src="/shared/navigation.js" defer></script><script src="/tools/tools.js" type="module"></script><script src="/shared/site-network.js" defer></script>
+</head>
+<body class="tools-room" data-audience="paid">
+  <a class="skip-link" href="#main">跳至正文</a>
+  <header class="site-header">
+    <a class="site-brand" href="/" aria-label="文艺淏，返回首页">文艺淏<span lang="en">Yihao Wen</span></a>
+    <nav aria-label="主要导航">
+      <a href="/github/">GitHub<span lang="en">Code</span></a><a href="/bilibili/">B站<span lang="en">Bilibili</span></a><a href="/games/">游戏<span lang="en">Games</span></a><a href="/music/">音乐<span lang="en">Music</span></a><a href="/tools/" aria-current="page">工具<span lang="en">Tools</span></a><a href="/guestbook/">留言板<span lang="en">Notes</span></a>
+    </nav>
+  </header>
+  <main id="main" tabindex="-1">
+    <div class="tools-intro"><div><p class="eyebrow" lang="en">THE DOWNLOAD DESK</p><h1>下载工作台<span>工具</span></h1></div><p class="desk-promise"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#shield"/></svg>百度直连 · 无需提供网盘账号</p></div>
+    <div class="tool-desk">
+      <aside class="desk-sidebar" aria-label="选择使用方式">
+        <p class="sidebar-caption">选择你的使用方式<span lang="en">GET STARTED</span></p>
+        <div class="audience-options" role="group" aria-label="下载方式">
+          <button class="audience-option" type="button" data-audience-choice="paid" aria-pressed="true"><span class="option-icon"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#download"/></svg></span><span><strong>按次下载</strong><small>有分享链接，直接开始</small></span><span class="option-check" aria-hidden="true">✓</span></button>
+          <button class="audience-option" type="button" data-audience-choice="friend" aria-pressed="false"><span class="option-icon"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#key"/></svg></span><span><strong>朋友入口</strong><small>凭访问码免费使用</small></span><span class="option-check" aria-hidden="true">✓</span></button>
+        </div>
+        <section id="payment-entry" class="audience-info" aria-labelledby="payment-heading">
+          <h2 id="payment-heading">用一次，付一次。</h2><p class="payment-price"><span>¥</span>0.50<small>/ 文件</small></p>
+          <p class="audience-description">先导入，再选择文件付款。<br>同一文件 24 小时内重取地址不另收费。</p>
+          <button id="guest-start" class="secondary-button" type="button" disabled>正在连接服务…</button>
+          <p id="payment-availability" class="payment-availability" role="status" aria-live="polite">正在读取收款状态…</p>
+        </section>
+        <section id="friend-entry" class="audience-info" aria-labelledby="friend-heading" hidden>
+          <h2 id="friend-heading">留给朋友的文件。</h2><p class="audience-description">输入本站访问码，即可浏览共享目录，也可以导入自己的分享链接。</p>
+          <form id="library-unlock" class="library-unlock"><label for="access-code">本站访问码</label><div><input id="access-code" type="password" maxlength="100" autocomplete="off" required placeholder="向分享者获取" aria-describedby="access-hint friend-status"><button class="primary-button" type="submit">进入 <span aria-hidden="true">→</span></button></div><small id="access-hint">不是百度网盘的四位提取码</small></form>
+          <div id="friend-unlocked" hidden><p class="unlocked-label"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#check"/></svg>访问码已验证</p><button type="button" class="secondary-button" data-view-shortcut="files">浏览共享文件 →</button><button id="library-lock" class="reset-button" type="button">退出访问</button></div>
+          <p id="friend-status" class="friend-status" role="status" aria-live="polite"></p>
+        </section>
+        <div class="sidebar-foot"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#link"/></svg><p>云端转存，直接下载。<small>文件由百度提供，不经过本站服务器。</small></p></div>
+      </aside>
+      <section class="workspace" aria-label="下载工作区">
+        <div class="workspace-bar"><div class="workspace-tabs" role="tablist" aria-label="工作区">
+          <button id="tab-import" type="button" role="tab" aria-selected="true" aria-controls="baidu-tool" data-workspace-tab="import">导入链接</button>
+          <button id="tab-files" type="button" role="tab" aria-selected="false" aria-controls="file-library" tabindex="-1" data-workspace-tab="files">文件列表</button>
+          <button id="tab-orders" type="button" role="tab" aria-selected="false" aria-controls="orders-view" tabindex="-1" data-workspace-tab="orders">我的订单</button>
+        </div><span class="workspace-mark" lang="en">LINK → FILE</span></div>
+        <section class="workspace-view import-view" id="baidu-tool" role="tabpanel" aria-labelledby="tab-import" data-workspace-view="import">
+          <div class="input-panel"><div class="input-heading"><p class="panel-caption" lang="en">01 / IMPORT</p><h2>把链接放在这里。</h2><p class="input-lead">整段分享文字也可以，提取码会自动识别。</p></div>
+            <form id="share-form" novalidate>
+              <div class="share-field"><label class="field-label" for="share-input">百度网盘分享链接<span lang="en">SHARE LINK</span></label><textarea id="share-input" maxlength="4000" rows="4" placeholder="粘贴链接，或包含链接和提取码的分享文字…" aria-describedby="input-hint form-status" required autocomplete="off" spellcheck="false"></textarea><button class="paste-button" id="paste" type="button"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#clipboard"/></svg>粘贴</button></div>
+              <div class="import-options"><div class="code-field"><label for="share-code">提取码 <small>选填</small></label><input id="share-code" type="text" maxlength="4" placeholder="自动识别" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="form-status"></div><button class="reset-button" type="reset">清空</button></div>
+              <div class="form-actions"><button class="primary-button" type="submit">解析并转存<svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#arrow"/></svg></button><p class="field-hint" id="input-hint">支持 pan.baidu.com / yun.baidu.com<br><span>转存会占用分享者的网盘空间。</span></p></div>
+              <p id="form-status" class="form-status" role="status" aria-live="polite"></p>
+            </form>
+          </div>
+          <aside class="import-guide" aria-label="使用流程与链接识别结果"><div class="result-topline"><span lang="en">HOW IT WORKS</span><span id="result-label">等待输入</span></div>
+            <div id="empty-result" class="empty-result"><h3>从分享，到下载。</h3><ol class="flow-steps"><li><span>01</span><div><strong>粘贴分享</strong><p>链接与提取码，一起识别。</p></div></li><li><span>02</span><div><strong>选择文件</strong><p>云端转存，无需等文件上传。</p></div></li><li><span>03</span><div><strong data-paid-copy>支付后下载</strong><strong data-friend-copy hidden>直接下载</strong><p data-paid-copy>每个文件 ¥0.50，支付宝付款。</p><p data-friend-copy hidden>访问码验证后，无需按次付款。</p></div></li></ol></div>
+            <div id="share-result" class="share-result" hidden><span class="result-icon"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#link"/></svg></span><h3>分享已识别</h3><dl class="result-data"><div><dt>分享地址</dt><dd id="result-link"></dd></div><div><dt>提取码</dt><dd id="result-code">—</dd></div></dl><p class="result-note" id="result-note">正在验证分享。</p><div class="share-result-actions"><button class="reset-button" id="copy-share" type="button">复制分享信息</button><a id="open-share" class="open-share" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">在百度打开 ↗</a></div><p id="copy-status" class="copy-status" role="status" aria-live="polite"></p></div>
+            <p class="guide-foot"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#shield"/></svg>无需填写百度账号与密码</p>
+          </aside>
+        </section>
+        <section class="workspace-view files-view" id="file-library" role="tabpanel" aria-labelledby="tab-files" data-workspace-view="files" hidden>
+          <div class="view-heading"><div><p class="panel-caption" lang="en">02 / FILES</p><h2 id="library-title">选择要下载的文件</h2></div><button class="secondary-button" type="button" data-view-shortcut="import">导入链接 <span aria-hidden="true">＋</span></button></div>
+          <div id="files-empty" class="view-empty"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#folder"/></svg><h3>文件会出现在这里</h3><p data-paid-copy>先导入一份分享，再选择文件付款下载。</p><p data-friend-copy hidden>输入访问码，即可查看共享文件。</p><button class="secondary-button" id="files-empty-action" type="button">去导入链接 →</button></div>
+          <div id="library-content" hidden><div class="folder-toolbar"><button id="folder-up" type="button" class="icon-button" aria-label="返回上一级文件夹" title="上一级" disabled>↑</button><span id="folder-path">共享文件</span><button id="folder-refresh" class="icon-button" type="button" aria-label="刷新文件列表" title="刷新">↻</button></div><ul id="file-list" class="file-list" aria-label="共享文件"></ul><div class="file-pages"><button id="page-prev" type="button" class="icon-button" aria-label="上一页">←</button><span id="page-label">0 项</span><button id="page-next" type="button" class="icon-button" aria-label="下一页">→</button></div></div>
+        </section>
+        <section class="workspace-view orders-view" id="orders-view" role="tabpanel" aria-labelledby="tab-orders" data-workspace-view="orders" hidden>
+          <div class="view-heading"><div><p class="panel-caption" lang="en">YOUR ORDERS</p><h2>下载有记录，重试不重付。</h2></div><button id="restore-orders" class="secondary-button" type="button" hidden>找回订单 ↻</button></div>
+          <div id="orders-empty" class="view-empty"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#receipt"/></svg><h3>本浏览器还没有订单</h3><p>已有订单可点击“找回订单”。<br>请使用下单时的浏览器，保留 Cookie。</p></div>
+          <div id="recent-orders" class="recent-orders" hidden><ul id="order-list" aria-label="本浏览器的订单"></ul><div class="file-pages"><button id="orders-prev" class="icon-button" type="button" aria-label="上一页订单">←</button><span id="orders-page">0 项</span><button id="orders-next" class="icon-button" type="button" aria-label="下一页订单">→</button></div></div>
+          <p id="orders-status" class="orders-status" role="status" aria-live="polite">同一文件付款后 24 小时内可重取地址；跨设备请凭账单联系站长。</p>
+        </section>
+        <div class="workspace-status"><span class="status-dot" aria-hidden="true"></span><p id="library-status" role="status" aria-live="polite">准备就绪，粘贴分享链接即可开始。</p><button id="share-details" type="button" hidden>分享详情 ↗</button><span class="status-end" lang="en">DIRECT FROM BAIDU</span></div>
+      </section>
+    </div>
+    <noscript><p class="noscript-note">请启用 JavaScript 以使用下载工具。</p></noscript>
+  </main>
+  <dialog id="task-dialog" class="task-dialog" aria-labelledby="task-heading"><div class="dialog-bar"><span id="task-heading">文件下载</span><button id="close-task" class="icon-button" type="button" aria-label="关闭弹窗">×</button></div><div class="dialog-body">
+    <section id="download-detail" class="download-detail" hidden><div class="dialog-symbol"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#check"/></svg></div><p class="panel-caption" lang="en">READY TO DOWNLOAD</p><h3 id="download-title"></h3><p>地址已准备好，文件由百度直接提供。</p><div class="result-actions"><a id="direct-download" class="primary-button" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">直接下载 ↗</a><button id="copy-direct" class="secondary-button" type="button">复制下载地址</button><button id="copy-command" class="secondary-button" type="button">复制 Windows 下载命令</button></div><p id="download-feedback" role="status" aria-live="polite"></p><p class="download-help">地址会过期。浏览器下载失败时，可将命令粘贴到 PowerShell，或在下载工具中设置 User-Agent 为 pan.baidu.com。</p></section>
+    <section id="payment-checkout" class="payment-checkout" aria-labelledby="payment-file" hidden><p class="panel-caption" lang="en">ALIPAY CHECKOUT</p><h3 id="payment-file"></h3><div class="checkout-price"><span>本次下载地址授权</span><strong>¥0.50</strong></div><p class="checkout-terms">付款后 24 小时内，当前浏览器可为同一文件重取地址，失败重试不另收费。速度与地址有效期由百度决定，不承诺固定速度。</p><div class="result-actions"><button id="create-order" class="primary-button" type="button">创建订单 · ¥0.50</button><a id="alipay-checkout" class="primary-button" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer" hidden>前往支付宝支付 ↗</a><button id="check-order" class="secondary-button" type="button" hidden>我已支付，查询结果</button><button id="retrieve-order" class="primary-button" type="button" hidden>获取已购下载地址</button></div><p id="payment-order-number" class="payment-order-number"></p><p id="payment-status" class="payment-status" role="status" aria-live="polite"></p><p class="payment-help">请保留订单号。无法取得地址或需退款，可通过首页邮箱联系站长；跨设备或清除 Cookie 后请提供支付宝账单。</p></section>
+    <section id="share-detail" class="share-detail" hidden></section>
+  </div></dialog>
+  <footer><a href="/">文艺淏 · wenyihao.cn</a><span>一些顺手的小工具<span lang="en"> / A LITTLE TOOLBOX</span></span><a class="site-registration" href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer">陕ICP备2026032961号</a></footer>
+</body>
+</html>

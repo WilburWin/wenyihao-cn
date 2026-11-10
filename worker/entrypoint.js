@@ -1,6 +1,6 @@
 import {WorkerEntrypoint} from 'cloudflare:workers';
 import {createMusicSiteSupport} from './music-site-support.js';
-export {default,GameRoom,Guestbook} from './index.js';
+export {default,GameRoom,Guestbook,ServerStatus,DownloadBridge} from './index.js';
 
 export class MusicSiteSupport extends WorkerEntrypoint {
   configuration(){return createMusicSiteSupport(this.env).configuration();}

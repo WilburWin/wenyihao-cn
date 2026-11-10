@@ -1,0 +1,18 @@
+[Unit]
+Description=Website server monitoring, quota and notifications
+After=network-online.target
+Wants=network-online.target
+Before=nginx.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/website-monitor/monitor.py
+StateDirectory=website-monitor
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+CapabilityBoundingSet=CAP_NET_ADMIN
+TimeoutStartSec=50

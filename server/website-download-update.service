@@ -1,0 +1,11 @@
+[Unit]
+Description=Update website download metadata agent
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/website-downloads/download-update.py
+TimeoutStartSec=60
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true

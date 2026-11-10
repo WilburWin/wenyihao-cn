@@ -4,6 +4,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {experimental_readRawConfig} from 'wrangler';
 import {deploymentEnvironment} from './deploy-environment.mjs';
+import {prepareDownloadAgent} from './prepare-download-agent.mjs';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
 process.chdir(root);
@@ -17,6 +18,7 @@ const only=args.find(value=>value.startsWith('--only='))?.slice(7),dryRun=args.i
 if(args.includes('--bootstrap')&&(dryRun||only))throw Error('--bootstrap must be used without --dry-run or --only');
 // Validate the connected CI target before any stage can change a deployment.
 deploymentEnvironment(process.env,{siteName:site.name,targetName:site.name});
+if(only!=='music')await prepareDownloadAgent();
 function run(config,targetName){
   const env=deploymentEnvironment(process.env,{siteName:site.name,targetName});
   console.log(`\n${dryRun?'Checking':'Deploying'} Worker: ${targetName}`);

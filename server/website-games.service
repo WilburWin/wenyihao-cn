@@ -1,0 +1,30 @@
+[Unit]
+Description=Personal website game WebSocket backend
+After=network.target
+
+[Service]
+Type=simple
+User=website-games
+Group=website-games
+WorkingDirectory=/opt/website-games/current
+Environment=NODE_ENV=production
+Environment=GAME_HOST=127.0.0.1
+Environment=GAME_PORT=8788
+Environment=GAME_DATA_DIR=/var/lib/website-games
+EnvironmentFile=-/etc/website-games.env
+ExecStart=/usr/bin/node server/game-server.mjs
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+StateDirectory=website-games
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+MemoryMax=384M
+TasksMax=64
+
+[Install]
+WantedBy=multi-user.target

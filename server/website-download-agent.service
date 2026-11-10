@@ -1,0 +1,29 @@
+[Unit]
+Description=Website download metadata bridge (no file relay)
+After=network-online.target website-alist.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=website-downloads
+Group=website-downloads
+ExecStart=/usr/bin/node /opt/website-downloads/current.mjs
+Environment=DOWNLOAD_AGENT_CONFIG=/etc/website-downloads/config.json
+Restart=always
+RestartSec=8
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+MemoryMax=160M
+CPUQuota=30%
+TasksMax=40
+StateDirectory=website-downloads
+StateDirectoryMode=0700
+
+[Install]
+WantedBy=multi-user.target

@@ -10,11 +10,16 @@
 | GitHub | `/github/` | 分页抓取全部公开仓库，支持搜索与语言筛选，包含 Fork 和归档仓库 |
 | B站 | `/bilibili/` | 小电视外框中的个人主页，保留外部打开入口 |
 | 游戏人生 | `/games/` | 霓虹游戏厅，四张带主题动画的游戏卡片 |
-| 照片墙 | `/photos/` | 拟真相纸、分类搜索、大图预览 |
+| 照片墙（暂时下线） | `/photos/` | 入口已移除，页面及图片停止发布，源文件保留供后续改版 |
 | 音乐 | `/music/` | 独立音频播放、队列、随机与循环、音质选择、喜欢与最近播放、可选扫码登录、MV 跳转 |
+| 工具 | `/tools/` | 访问码保护的共享文件；粘贴百度分享链接，云端转存后取得下载地址 |
 | 留言板 | `/guestbook/` | 免登录便签、分页、持久化存储与管理删除接口 |
 
-导航顺序为 GitHub、B站、游戏、照片墙、音乐、留言板。各页导航保持相同位置与尺寸；中文为主，英文辅助文字使用较小字号。
+导航顺序为 GitHub、B站、游戏、音乐、工具、留言板。各页导航保持相同位置与尺寸；中文为主，英文辅助文字使用较小字号。
+
+工具板块使用朋友访问码，可浏览限定共享目录，也可粘贴百度分享链接，自动转存到共享目录的“链接导入”子目录后下载；相同分享优先复用已有文件。转存占用网盘空间，文件内容由百度直接传给下载者，ECS 仅处理元数据与转存指令，不提供文件中转回退。ECS 主动建立加密连接，无需公开 AList 端口或新增 DNS。Git 构建会发布下载代理版本，服务器每五分钟检查并更新；一次配置后，常规改动可随 GitHub 推送更新。访问码与百度授权不写入 Git。配置、下载工具要求和验收见[网盘工具](docs/download-tool.md)。
+
+工具还预备了支付宝按次订单：0.50 元购买一个文件的下载地址授权，服务端核实到账后交付；朋友访问码继续免费使用。正式收款默认关闭，需开通商户应用并配置密钥、完成真实沙箱联调后启用，详见[按次收款](docs/tool-payments.md)。
 
 游戏包括星弈围棋、雀神麻将、黑八台球和猫咪在哪里。前三款支持联机，找猫是单人逻辑解谜。围棋与找猫采用中央棋盘或网格、两侧工具布局；窄屏允许重排和滚动。台球提供网络 RTT 显示。
 
@@ -39,7 +44,7 @@ node scripts/music-session-key.mjs --local
 
 ## 部署
 
-架构为 **Cloudflare Workers + Static Assets + SQLite Durable Objects**，平台入口为 `worker/entrypoint.js`，网站路由和房间在 `worker/index.js`，静态目录为 `public/`。主站配置为 `wrangler.jsonc`，独立音乐后端配置为 `wrangler.music.jsonc`。网页没有额外的打包步骤，Worker 依赖由 Wrangler 打包。
+架构为 **Cloudflare Workers + Static Assets + SQLite Durable Objects**，平台入口为 `worker/entrypoint.js`，网站路由和房间在 `worker/index.js`，静态目录为 `public/`。主站配置为 `wrangler.jsonc`，独立音乐后端配置为 `wrangler.music.jsonc`。Worker 依赖由 Wrangler 打包；部署脚本还会生成私有下载代理版本文件，不能省略该步骤。
 
 在 Workers 的 Git 构建配置中连接仓库，并核对生产分支、项目根目录及命令：
 
@@ -59,7 +64,7 @@ npm run deploy
 
 `npm run deploy` 先更新独立音乐 Worker，再更新主站；若音乐部署失败则停止，不更新主站。已有 Git 集成也须将部署命令从 `npx wrangler deploy` 改为 `npm run deploy`，仅执行前者不会更新音乐后端。构建令牌需要能部署这两个 Worker。首次建立两者的服务绑定时使用 `node scripts/deploy.mjs --bootstrap`，先以旧音乐链路发布主站的私有会话入口，再部署音乐和最终主站。后续更新无需 `--bootstrap`。
 
-已有站点继续使用根目录的配置。**保留 Worker 名称、Durable Objects 绑定和迁移记录**，避免部署到新目标或改变数据归属。全新站点可从 `config/wrangler.example.jsonc` 开始，替换名称后执行 `npx wrangler deploy --config config/wrangler.example.jsonc`；示例中的资源路径相对于该配置文件。
+已有站点继续使用根目录的配置。**保留 Worker 名称、Durable Objects 绑定和迁移记录**，避免部署到新目标或改变数据归属。全新站点可从 `config/wrangler.example.jsonc` 开始，替换名称后按[网盘工具的新站步骤](docs/download-tool.md)生成版本资源再部署；示例中的资源路径相对于该配置文件。
 
 ### 可选机密与音乐传输
 
@@ -67,7 +72,10 @@ npm run deploy
 | --- | --- |
 | `MUSIC_SESSION_KEY` | 加密每位访客独立的 B站登录会话，未配置时禁用扫码登录 |
 | `GUESTBOOK_ADMIN_TOKEN` | 留言删除授权，未配置时关闭删除接口 |
+| `DOWNLOAD_ACCESS_CODE` | 下载工具的朋友访问码，主站 Worker Secret |
+| `DOWNLOAD_BRIDGE_KEY` | ECS 元数据代理与主站之间的授权，主站 Secret，与朋友访问码分开 |
 | `MUSIC_API_TRANSPORT` | 普通变量，默认 `socket`；可设为 `fetch` 后重新部署以回退传输 |
+| `MUSIC_AUDIO_DELIVERY` | 默认 `relay` 保持当前音频中转；`direct` 为尚未通过实际 CDN 播放验证的直连试验，不自动回退中转 |
 | `MUSIC_BACKEND_MODE` | 主站变量，`regional` 使用独立音乐服务；`local` 回退主站处理 |
 
 生产音乐密钥可直接通过管道写入，避免手动复制：
@@ -82,11 +90,19 @@ node scripts/music-session-key.mjs | npx wrangler secret put MUSIC_SESSION_KEY
 
 独立音乐服务采用香港区域偏好，浏览器仍访问主域名，无需新增 DNS 或重新配置登录密钥。主站保留会话加密和解密，服务绑定传递所需数据；账号凭据仍只在请求中临时使用。配置、验收与回退见 [音乐香港部署](docs/music-regional.md)。本地开发继续在本机处理音乐，无需启动第二个 Worker。
 
+独立 Ubuntu 游戏后端已提供准备方案，复用同一房间协议，暂未切换线上连接。部署、内部测试和切换限制见 [游戏服务器](docs/games-server.md)。
+
+后续采用 Cloudflare DNS 与音乐、ECS 主站与联机的混合架构，当前尚未切换。阶段、流量边界、登录影响和回退步骤见 [混合部署搬迁方案](docs/hybrid-migration.md)。
+
+公开只读监控入口 `/admin/`，服务器每分钟上报概况，按每月 1 GB 设置出站预警和 Web 响应保护，微信日报通过 Server酱发送。隐私、脱敏访客城市、统计差异及回退见 [服务器监控](docs/server-monitor.md)。
+
 ## 内容维护
 
 网站展示内容目前保留；本轮整理只通用化文档和开发示例。姓名、账号、背景、照片目录与其他内容的修改入口见 [内容维护与个人信息范围](docs/customization.md)。
 
 ### 照片
+
+照片墙暂时下线：导航不显示入口，Worker 拒绝 `/photos` 和 `/photos/*`，`public/.assetsignore` 排除该目录的部署。源文件和生成流程保留；恢复需同时调整以上三处。排除部署不能撤回已下载的副本或 Git 历史。
 
 复制 `config/photos.example.json` 为 `config/photos.local.json`，将 `source` 设置为源图片目录。相对路径以仓库根目录为基准；也可用环境变量 `PHOTO_SOURCE_DIR` 覆盖。现有本机配置已保留，配置文件不会提交。
 

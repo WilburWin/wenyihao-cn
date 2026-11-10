@@ -1,11 +1,13 @@
 import {createCoverLoader} from './cover-loader.js';
 import {collectionTracks,shuffleTracks} from './library.js';
 import {createUploaderLibrary} from './uploader-library.js';
+import {playbackSources} from './audio-source.js';
 const $=selector=>document.querySelector(selector);
 const audio=$('#audio');
 let tracks=[],current=null,resolved=null,requestSerial=0,controller=null,loadedId=null;
 let singleRepeat=false,shuffle=false,loading=false,recoveries=0,pendingSeek=0;
 let authPlayback=null;
+let mediaSources=[],mediaSourceIndex=0;
 let libraryView='all',playbackQueue=[],shuffledNext=[],toastTimer,connectionTimer;
 let uploaderLists=[],defaultTrackIds,visibleLimit=100;
 let uploaderLibrary,queueUploader=null,choosingUpload=false;
@@ -140,23 +142,25 @@ function updateProgress(){
   $('#progress').setAttribute('aria-valuetext',`${clock(audio.currentTime)} / ${clock(duration)}`);
 }
 async function startAudio(){
-  const serial=requestSerial;
+  const serial=requestSerial,source=audio.getAttribute('src');
   try{await audio.play();}
   catch(error){
-    if(serial!==requestSerial)return;
+    if(serial!==requestSerial||source!==audio.getAttribute('src'))return;
     if(error.name==='AbortError')return;
     if(error.name==='NotAllowedError'){clearTimeout(connectionTimer);loading=false;covers.pause(false);status('点击播放继续');syncControls();return;}
+    // The media error handler tries the remaining direct CDN candidates.
+    if(audio.error)return;
     fail('音频未能播放，请重试或通过 MV 打开原视频。');
   }
 }
 async function playTrack(track,{position=0,quality='',resume=true,recovery=false}={}){
   if(!track)return;
   const serial=++requestSerial;controller?.abort();controller=new AbortController();covers.pause(true);watchConnection();
-  audio.pause();audio.removeAttribute('src');audio.load();loadedId=null;resolved=null;pendingSeek=position;
+  audio.pause();audio.removeAttribute('src');audio.load();loadedId=null;resolved=null;pendingSeek=position;mediaSources=[];mediaSourceIndex=0;
   if(!recovery)recoveries=0;
   updateCurrent(track);loading=true;$('#playback-error').hidden=true;$('#quality').disabled=true;$('#progress').disabled=true;$('#elapsed').textContent=clock(position);$('#duration').textContent='—:—';status('正在连接音频…');syncControls();
   try{
-    const response=await fetch('/api/music/resolve?'+trackParams(track),{signal:controller.signal,cache:'no-store'});
+    const response=await fetch('/api/music/resolve?'+trackParams(track)+(recovery?'&refresh=1':''),{signal:controller.signal,cache:'no-store'});
     const data=await response.json();
     if(!response.ok){if(response.status===401)window.dispatchEvent(new Event('music-auth-expired'));throw Error(data.message||'无法读取歌曲资源。');}
     if(serial!==requestSerial)return;
@@ -166,10 +170,8 @@ async function playTrack(track,{position=0,quality='',resume=true,recovery=false
     $('#quality').replaceChildren(...choices.map(choice=>{const option=document.createElement('option');option.value=String(choice.id);option.textContent=choice.label;return option;}));
     const chosen=choices.find(choice=>String(choice.id)===String(quality))||choices[0];
     $('#quality').value=String(chosen.id);$('#quality').disabled=false;
-    const source=new URL(data.streamUrl,location.origin);
-    if(source.origin!==location.origin||source.pathname!=='/api/music/audio')throw Error('音频地址无效。');
-    source.searchParams.set('quality',String(chosen.id));
-    loadedId=track.id;audio.src=source.pathname+source.search;audio.load();render();
+    mediaSources=playbackSources(data,chosen,location.origin);mediaSourceIndex=0;
+    loadedId=track.id;audio.src=mediaSources[0];audio.load();render();
     if(resume)await startAudio();else{clearTimeout(connectionTimer);loading=false;covers.pause(false);status('已暂停');syncControls();}
   }catch(error){if(serial!==requestSerial||error.name==='AbortError')return;fail(error instanceof SyntaxError?'音乐接口尚未启动，请使用支持 Worker 的预览服务。':error.message);}
 }
@@ -207,8 +209,12 @@ audio.addEventListener('durationchange',updateProgress);
 audio.addEventListener('ended',()=>{if(singleRepeat){audio.currentTime=0;startAudio();}else move(1);});
 audio.addEventListener('error',()=>{
   if(!loadedId)return;
+  if(mediaSourceIndex+1<mediaSources.length){
+    pendingSeek=audio.currentTime||pendingSeek;mediaSourceIndex++;
+    audio.src=mediaSources[mediaSourceIndex];audio.load();watchConnection();startAudio();return;
+  }
   if(recoveries<1){recoveries++;playTrack(current,{position:audio.currentTime,quality:$('#quality').value,recovery:true});}
-  else fail('音频线路暂不可用。请稍后重试，或点击 MV 在B站播放。');
+  else fail(resolved?.delivery==='direct'?'B站音频直连暂不可用，请重试或点击 MV 在B站播放。':'音频线路暂不可用。请稍后重试，或点击 MV 在B站播放。');
 });
 $('#search').addEventListener('input',()=>{visibleLimit=100;render();});
 $('#load-more').addEventListener('click',async()=>{const list=uploaderLibrary?.get(libraryView);if(list&&visibleLimit>=libraryTracks().length){try{const page=uploaderLibrary.nextPage(list.id);if(page)await uploaderLibrary.load(list.id,page);}catch(error){toast(error.message);}}visibleLimit+=100;render();});

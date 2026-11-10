@@ -6,7 +6,7 @@
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
   "placement": { "region": "aws:ap-east-1" },
-  "vars": { "MUSIC_API_TRANSPORT": "socket" },
+  "vars": { "MUSIC_API_TRANSPORT": "socket", "MUSIC_AUDIO_DELIVERY": "relay" },
   "services": [
     { "binding": "SITE_SUPPORT", "service": "wenyihao-cn", "entrypoint": "MusicSiteSupport" }
   ]

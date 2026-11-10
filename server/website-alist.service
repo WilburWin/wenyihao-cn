@@ -1,0 +1,41 @@
+[Unit]
+Description=Private AList backend for the website toolbox
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+[Service]
+Type=simple
+User=website-alist
+Group=website-alist
+WorkingDirectory=/var/lib/website-alist
+ExecStart=/opt/website-alist/current/alist server --data /var/lib/website-alist --log-std
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+StateDirectory=website-alist
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+LockPersonality=true
+MemoryMax=384M
+CPUQuota=50%
+TasksMax=96
+LimitNOFILE=4096
+LogRateLimitIntervalSec=30s
+LogRateLimitBurst=100
+
+[Install]
+WantedBy=multi-user.target

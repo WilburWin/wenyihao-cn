@@ -36,8 +36,9 @@ export function audioChoices(data){
 }
 
 // The package handles WBI signing and anonymous session bootstrap. This adapter
-// supplies the selected part, exposes available audio tracks, and relays Range
-// requests on the server. Account access is bound to this browser's encrypted
+// supplies the selected part and relays Range requests. An experimental direct
+// mode returns validated, expiring CDN URLs without transferring audio bytes.
+// Account access is bound to this browser's encrypted
 // session; authenticated stream plans never enter a shared/persistent cache.
 export function createMusicHandler({fetcher=(...args)=>fetch(...args),Extractor=BilibiliAudioExtractor,cacheStore=()=>globalThis.caches?.default,now=()=>Date.now()}={}){
   const playlists=new Map(),inflight=new Map(),plans=new Map(),bootstrapCache=new Map();
@@ -142,15 +143,18 @@ export function createMusicHandler({fetcher=(...args)=>fetch(...args),Extractor=
     if(!['GET','HEAD'].includes(request.method))return json({message:'不支持的操作。'},405,{Allow:'GET, HEAD'});
     const origin=request.headers.get('Origin');
     if((origin&&origin!==url.origin)||request.headers.get('Sec-Fetch-Site')==='cross-site')return json({message:'请从本站播放音乐。'},403);
+    const direct=env.MUSIC_AUDIO_DELIVERY==='direct';
+    if(direct&&url.pathname==='/api/music/audio')return json({message:'音频中转已关闭，请刷新播放器后直连音频源。'},410,{'Cache-Control':'private, no-store'});
     try {
       const catalog=await publishedTracks(request,env),track=requestedTrack(url,catalog);
       if(!track)throw new MusicError('歌曲未发布或不存在。',404);
       const session=await readMusicSession(request,env);
-      let plan=await planFor(request,track,ctx,session);
+      let plan=await planFor(request,track,ctx,session,direct&&url.searchParams.get('refresh')==='1');
       if(url.pathname.endsWith('/resolve')){
         const {choices,expiresAt,...info}=plan;
-        return json({...info,expiresAt,qualities:choices.map(({id,label,mime,bandwidth})=>({id,label,mime,bandwidth})),
-          streamUrl:'/api/music/audio?'+trackQuery(track)});
+        return json({...info,expiresAt,delivery:direct?'direct':'relay',
+          qualities:choices.map(({id,label,mime,bandwidth,urls})=>({id,label,mime,bandwidth,...(direct?{urls:urls.filter(isAudioHost)}:{})})),
+          ...(!direct?{streamUrl:'/api/music/audio?'+trackQuery(track)}:{})},200,{'Cache-Control':'private, no-store'});
       }
       const range=request.headers.get('Range');
       if(range&&!/^bytes=(?:\d+-\d*|-\d+)$/.test(range))throw new MusicError('不支持的音频范围。',416);

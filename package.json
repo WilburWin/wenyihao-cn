@@ -4,11 +4,13 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
+    "games:server": "node server/game-server.mjs",
     "deploy": "node scripts/deploy.mjs",
     "deploy:site": "node scripts/deploy.mjs --only=site",
     "deploy:music": "node scripts/deploy.mjs --only=music",
     "test": "node --test test/*.test.js",
     "check": "node scripts/check.mjs",
+    "payments:sandbox": "node scripts/payment-sandbox.mjs",
     "music:studio": "node scripts/music-studio.mjs",
     "music:playlists": "node scripts/publish-uploader-playlists.mjs"
   },
@@ -17,7 +19,9 @@
   },
   "dependencies": {
     "@bryan-kuang/bilibili-audio-extractor": "0.1.0",
+    "alipay-sdk": "4.14.0",
     "qrcode-generator": "2.0.4",
-    "stealth-fetch": "0.2.2"
+    "stealth-fetch": "0.2.2",
+    "ws": "8.21.0"
   }
 }

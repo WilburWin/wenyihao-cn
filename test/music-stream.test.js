@@ -5,9 +5,9 @@ import {sealMusicSession} from '../worker/music-auth.js';
 import {uploaderTrackId} from '../worker/music-catalog.js';
 
 const track={id:'0123456789abcdef',bvid:'BV1B34y1h78S',title:'Test song',artist:'Artist',page:2,confirmed:true};
-function setup({rejectFirstStream=false,blocked=false,expiredLogin=false,cacheStore=()=>null,live=false,ownerMid='11'}={}){
+function setup({rejectFirstStream=false,blocked=false,expiredLogin=false,cacheStore=()=>null,live=false,ownerMid='11',delivery='relay'}={}){
   const requests=[];let streamCalls=0;
-  const env={MUSIC_SESSION_KEY:Buffer.alloc(32,8).toString('base64url'),ASSETS:{fetch:async()=>Response.json({tracks:[track],playlists:live?[{uid:'11',source:'live'}]:[]})}};
+  const env={MUSIC_AUDIO_DELIVERY:delivery,MUSIC_SESSION_KEY:Buffer.alloc(32,8).toString('base64url'),ASSETS:{fetch:async()=>Response.json({tracks:[track],playlists:live?[{uid:'11',source:'live'}]:[]})}};
   const handler=createMusicHandler({cacheStore,fetcher:async(value,options)=>{
     const url=new URL(value);requests.push({url,options});
     if(url.hostname.endsWith('.bilivideo.com')){
@@ -52,6 +52,31 @@ test('actual extractor signs selected part, returns highest available audio, and
     assert.equal(new Headers(r.options.headers).get('Cookie').includes('SESSDATA'),false);
   }
   await request('/resolve?id='+track.id);assert.equal(requests.filter(r=>r.url.pathname.endsWith('/playurl')).length,1);
+});
+
+test('direct mode returns validated per-quality CDN addresses without fetching audio or exposing a relay',async()=>{
+  const f=setup({delivery:'direct'});
+  const response=await f.request('/resolve?id='+track.id),data=await response.json();
+  assert.equal(data.delivery,'direct');assert.equal(data.streamUrl,undefined);
+  assert.equal(response.headers.get('Cache-Control'),'private, no-store');
+  assert.equal(data.qualities[0].urls[0],'https://test.bilivideo.com/high.m4s');
+  assert.equal(f.requests.some(r=>r.url.hostname.endsWith('.bilivideo.com')),false);
+  const count=f.requests.length;
+  assert.equal((await f.request('/audio?id='+track.id)).status,410);
+  assert.equal(f.requests.length,count);
+  await f.request('/resolve?id='+track.id+'&refresh=1');
+  assert.equal(f.requests.filter(r=>r.url.pathname.endsWith('/playurl')).length,2);
+});
+
+test('authenticated direct URLs remain private and never include account cookies',async()=>{
+  const f=setup({delivery:'direct'}),cookie=await f.accountCookie('private-session');
+  const response=await f.request('/resolve?id='+track.id,{headers:{Cookie:cookie}});
+  const data=await response.json();
+  assert.equal(data.authenticated,true);assert.equal(data.qualities[0].id,30251);
+  assert.equal(data.qualities[0].urls[0],'https://test.bilivideo.com/flac.m4s');
+  assert.equal(JSON.stringify(data).includes('private-session'),false);
+  assert.equal(JSON.stringify(data).includes('SESSDATA'),false);
+  assert.equal(f.requests.some(r=>r.url.hostname.endsWith('.bilivideo.com')),false);
 });
 test('audio forwards Range and required headers, preserves 206 and streams only the chosen track',async()=>{
   const {request,requests}=setup();

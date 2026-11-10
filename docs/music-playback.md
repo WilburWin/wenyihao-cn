@@ -24,6 +24,16 @@
 
 浏览器里的第三方页面还要遵守 CORS 与 Cookie 域隔离；使用 fetch 不会改变这些规则。由现有 Worker 运行提取器、并流式转发受限的媒体请求，可以让网页用同源 `<audio>` 播放，无需 Electron、浏览器扩展或访客本地服务。
 
+## 浏览器直接读取音频的试验
+
+新增 `MUSIC_AUDIO_DELIVERY`：默认或 `relay` 保留现有中转，只有显式设为 `direct` 才启用直连试验。本地可用 `npx wrangler dev --var MUSIC_AUDIO_DELIVERY:direct`。生产配置仍为 `relay`，本次没有发布音乐变更。
+
+直连时 `/api/music/resolve` 按音质返回经过 CDN 主机白名单校验的短期签名地址，响应为 `private, no-store`，不包含账号 Cookie。浏览器原生 `<audio>` 不设置 `crossOrigin`，音乐文档使用 `no-referrer`，依次尝试最多三个上游地址，失败后最多重新解析一次。直连模式的 `/api/music/audio` 返回 410，不会自动中转或调用其他代理。
+
+2026-11-07 在本机 Chrome 的独立无账号测试环境中，直接请求实际 B站 CDN 返回 403，音频未播放；网络记录中的本站音频中转请求数为零。对相同签名地址的小范围请求对比：不发送 Referer 返回 403，服务端发送 `Referer: https://www.bilibili.com/` 返回 206。其他已返回的音质和备用 CDN 也均拒绝无 Referer 请求。因此目前没有把直连试验开启到生产。结果只覆盖当次曲目、CDN 和网络，不能断言所有资源都如此，也不能把接口测试通过等同于真实可播放。
+
+普通网页不能把自身来源任意伪造成 B站；`no-referrer` 只会省略来源，不能替换为 B站。相关规范说明见 [MDN Referer](https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Referer)。把接口改成 302 跳转也不会使浏览器自动获得 B站来源。保留实验实现便于后续针对实际可直连资源复测，不将失败结果当作已解决播放。
+
 ## B站 API 的 Socket 传输试验
 
 当前生产音乐请求由独立 Worker 处理，配置文件是 `wrangler.music.jsonc`；主站的同名传输变量用于本地开发与回退链路。日常部署使用 `npm run deploy` 更新两者。主站保存原有登录密钥，通过私有服务完成会话加解密，不将密钥复制到音乐 Worker。音乐请求的区域偏好、同源转发和回退见 [音乐香港部署](music-regional.md)。

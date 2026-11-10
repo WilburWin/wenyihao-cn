@@ -5,13 +5,13 @@
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
   "dev": { "host": "localhost" },
-  "vars": { "MUSIC_API_TRANSPORT": "socket", "MUSIC_BACKEND_MODE": "regional", "GAME_SITE_ORIGIN": "https://wenyihao.cn", "SITE_EDGE_ORIGINS": "https://rt.wenyihao.cn" },
+  "vars": { "MUSIC_API_TRANSPORT": "socket", "MUSIC_AUDIO_DELIVERY": "relay", "MUSIC_BACKEND_MODE": "regional", "GAME_SITE_ORIGIN": "https://wenyihao.cn", "SITE_EDGE_ORIGINS": "https://rt.wenyihao.cn", "ALIPAY_ENV": "production", "ALIPAY_SIGN_MODE": "public-key", "ALIPAY_KEY_TYPE": "PKCS1", "PAYMENT_SITE_ORIGIN": "https://wenyihao.cn", "TOOLS_PAYMENT_ENABLED": "true" },
   "services": [{ "binding": "MUSIC_BACKEND", "service": "wenyihao-cn-music" }],
   "routes": [
     { "pattern": "wenyihao.cn", "custom_domain": true },
     { "pattern": "rt.wenyihao.cn/*", "zone_name": "wenyihao.cn" }
   ],
-  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/realtime/*", "/api/*", "/network/*"] },
-  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "GameRoom" }, { "name": "GUESTBOOK", "class_name": "Guestbook" }] },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom"] }, { "tag": "v2-guestbook", "new_sqlite_classes": ["Guestbook"] }]
+  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/realtime/*", "/api/*", "/network/*", "/photos", "/photos/*", "/_backend/*"] },
+  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "GameRoom" }, { "name": "GUESTBOOK", "class_name": "Guestbook" }, { "name": "STATUS", "class_name": "ServerStatus" }, { "name": "DOWNLOADS", "class_name": "DownloadBridge" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["GameRoom"] }, { "tag": "v2-guestbook", "new_sqlite_classes": ["Guestbook"] }, { "tag": "v3-server-status", "new_sqlite_classes": ["ServerStatus"] }, { "tag": "v4-download-bridge", "new_sqlite_classes": ["DownloadBridge"] }]
 }

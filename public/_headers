@@ -5,6 +5,17 @@
 /site-network-sw.js
   Cache-Control: no-cache
 
+/music/*
+  Referrer-Policy: no-referrer
+
+/admin/*
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+
+/tools/*
+  X-Robots-Tag: noindex, nofollow
+  Referrer-Policy: no-referrer
+
 /shared/site-network.js
   Cache-Control: no-cache
 

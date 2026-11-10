@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
+  <meta name="theme-color" content="#e8eef1"><title>运行观测台</title>
+  <link rel="stylesheet" href="/admin/status.css"><script type="module" src="/admin/status.js"></script>
+</head>
+<body>
+<main>
+  <header><div><p class="eyebrow">SYSTEM OBSERVATORY</p><h1>运行观测台</h1><p class="subtitle">一台服务器，此刻的状态。</p></div><div class="live-state"><span class="lamp" id="lamp"></span><span id="state">正在读取</span><small id="updated">等待首次采样</small></div></header>
+  <section class="budget" aria-labelledby="traffic-title">
+    <div class="budget-heading"><h2 id="traffic-title">本月出站流量 <small>MONTHLY EGRESS</small></h2><span id="month">—</span></div>
+    <div class="budget-reading"><strong id="used">—</strong><span>/ <b id="limit">1 GB</b></span><p>剩余 <b id="remaining">—</b><small id="budget-state">数据尚未接入</small></p></div>
+    <div class="scale" role="meter" aria-label="本月流量使用比例" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="budget-meter"><div id="fill"></div><i></i></div><div class="scale-labels"><span>0</span><span>80% · 预警</span><span>100% · 保护</span></div>
+    <div class="traffic-details"><p>今日出站<strong id="daily">—</strong></p><p>当前出站<strong id="rate">—</strong></p><p>统计起始<strong id="coverage">—</strong></p></div>
+    <p class="footnote">网卡出站统计，可能包含不计费的内网通信；与云账单存在差异。不含 Cloudflare 音乐流量。</p>
+  </section>
+  <section class="instruments" aria-label="服务器资源">
+    <article><h2>处理器 <small>CPU</small></h2><strong id="cpu">—</strong><div class="bar"><i id="cpu-bar"></i></div><span>当前使用率</span></article>
+    <article><h2>内存 <small>MEMORY</small></h2><strong id="memory">—</strong><div class="bar"><i id="memory-bar"></i></div><span id="memory-detail">等待采样</span></article>
+    <article><h2>磁盘 <small>STORAGE</small></h2><strong id="disk">—</strong><div class="bar"><i id="disk-bar"></i></div><span id="disk-detail">等待采样</span></article>
+    <article><h2>持续运行 <small>UPTIME</small></h2><strong id="uptime">—</strong><div class="uptime-line"></div><span>本次启动以来</span></article>
+  </section>
+  <section class="signals"><div><h2>近一小时 <small>OUTGOING TRAFFIC</small></h2><p>一分钟一个采样点 · 出站速度</p></div><svg viewBox="0 0 900 130" preserveAspectRatio="none" role="img" aria-label="最近一小时出站速度曲线"><path class="grid" d="M0 20H900M0 65H900M0 110H900"/><polyline id="traffic-line" points=""/></svg><p id="chart-empty" class="footnote">等待采样记录</p></section>
+  <section class="lower"><article class="service"><h2>游戏服务 <small>REALTIME</small></h2><p class="service-status" id="game-state">等待采样</p><div><p>当前连接<strong id="connections">—</strong></p><p>内存房间<strong id="rooms">—</strong></p></div><p class="footnote">房间数包含空闲与探测房间，不等于正在对局数。</p></article><article class="visitors"><div class="visitor-heading"><h2>访问足迹 <small>LAST 24 HOURS</small></h2><span id="visit-count">—</span></div><p class="footnote">脱敏网络地址与出口城市。同一网络同一城市每分钟最多记录一次，不等于独立人数；城市可能不准确。</p><table><thead><tr><th>网络地址</th><th>城市 / 地区</th><th>记录次数</th></tr></thead><tbody id="visitor-rows"><tr><td colspan="3">暂无记录</td></tr></tbody></table></article></section>
+  <footer><p>公开概况 · 无操作入口</p><p id="refresh">页面每 60 秒更新，离开标签页时暂停。</p></footer>
+</main>
+</body></html>

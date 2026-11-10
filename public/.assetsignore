@@ -1,0 +1,2 @@
+# Photo wall temporarily offline. Keep the files locally, exclude from deployment.
+/photos/**

@@ -4,20 +4,24 @@
   "main": "../worker/entrypoint.js",
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
-  "vars": { "MUSIC_API_TRANSPORT": "socket" },
+  "vars": { "MUSIC_API_TRANSPORT": "socket", "MUSIC_AUDIO_DELIVERY": "relay" },
   "assets": {
     "directory": "../public",
     "binding": "ASSETS",
-    "run_worker_first": ["/realtime/*", "/api/*"]
+    "run_worker_first": ["/realtime/*", "/api/*", "/photos", "/photos/*", "/_backend/*"]
   },
   "durable_objects": {
     "bindings": [
       { "name": "ROOMS", "class_name": "GameRoom" },
-      { "name": "GUESTBOOK", "class_name": "Guestbook" }
+      { "name": "GUESTBOOK", "class_name": "Guestbook" },
+      { "name": "STATUS", "class_name": "ServerStatus" },
+      { "name": "DOWNLOADS", "class_name": "DownloadBridge" }
     ]
   },
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["GameRoom"] },
-    { "tag": "v2-guestbook", "new_sqlite_classes": ["Guestbook"] }
+    { "tag": "v2-guestbook", "new_sqlite_classes": ["Guestbook"] },
+    { "tag": "v3-server-status", "new_sqlite_classes": ["ServerStatus"] },
+    { "tag": "v4-download-bridge", "new_sqlite_classes": ["DownloadBridge"] }
   ]
 }
