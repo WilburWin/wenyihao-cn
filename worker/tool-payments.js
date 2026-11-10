@@ -216,15 +216,26 @@ export class ToolPayments{
         const form=this.client.checkout(order).replace('</form>','<button type="submit">继续前往支付宝</button></form>');
         return new Response('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>正在前往支付宝</title><p>正在前往支付宝…</p><p>若未自动跳转，请点击下方按钮；请勿重复创建订单。</p>'+form+'</html>',{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'private, no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action "+targets+' '+this.cfg.origin}});
       }
-      if(!this.cfg.configured||(!this.cfg.enabled&&!['session','status','download'].includes(action)))throw failure('支付宝收款尚未开通，暂不接受付款。',503);
+      if(!this.cfg.configured||(!this.cfg.enabled&&!['session','status','download','delete'].includes(action)))throw failure('支付宝收款尚未开通，暂不接受付款。',503);
       if(new URL(request.url).origin!==this.cfg.origin||request.headers.get('Origin')!==this.cfg.origin)throw failure('来源验证失败。',403);
       if(request.method!=='POST')throw failure('请使用 POST。',405);
       const body=JSON.parse(await boundedText(request,2048)||'{}');
       if(action==='session'){
         let buyer=await this.buyer(request,false),cookie;
         if(!buyer){if(!this.cfg.enabled||body.restore===true)throw failure('当前浏览器没有可恢复的订单。',401);const token=Array.from(crypto.getRandomValues(new Uint8Array(32))).map(x=>x.toString(16).padStart(2,'0')).join(''),key='buyer:'+await digest(token);buyer={key,roots:[],orders:[],until:this.now()+7*DAY};const {key:_,...data}=buyer;await this.storage.put(key,data);cookie=`${SESSION}=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=604800`;}
-        const orders=[];for(const id of buyer.orders){const order=await this.storage.get('order:'+id);if(order)orders.push(this.publicOrder(order));}
+        const orders=[];for(const id of buyer.orders){const order=await this.storage.get('order:'+id);if(order&&!order.hiddenAt)orders.push(this.publicOrder(order));}
         return json({ready:true,orders},200,cookie?{'Set-Cookie':cookie}:{});
+      }
+      if(action==='delete'){
+        const order=await this.owned(request,body.id);
+        // Remove the buyer-facing entry only. Keep reconciliation, refunds and
+        // same-file grants intact so hiding a record cannot cause another charge.
+        await this.storage.transaction(async tx=>{
+          const row=await tx.get('order:'+order.id);
+          if(!row||row.buyer!==order.buyer)throw failure('订单不存在。',404);
+          if(!row.hiddenAt){row.hiddenAt=this.now();await tx.put('order:'+row.id,row);}
+        });
+        return json({deleted:true,id:order.id});
       }
       if(action==='order'){
         const buyer=await this.buyer(request),path=this.safePath(body.path);
@@ -238,10 +249,11 @@ export class ToolPayments{
         if(typeof metadata.name!=='string'||metadata.name.length>255||!Number.isSafeInteger(metadata.size)||metadata.size<0)throw failure('文件信息无效。',502);
         const order=await this.storage.transaction(async tx=>{
           const fresh=await tx.get(buyer.key),idemKey='purchase:'+buyer.key+':'+body.requestId,existing=await tx.get(idemKey);
-          if(existing){const old=await tx.get('order:'+existing.order);if(old&&old.path===path)return old;throw failure('请重新选择文件后下单。');}
+          const reuse=async old=>{if(old.hiddenAt){delete old.hiddenAt;await tx.put('order:'+old.id,old);}return old;};
+          if(existing){const old=await tx.get('order:'+existing.order);if(old&&old.path===path)return reuse(old);throw failure('请重新选择文件后下单。');}
           // Reuse pending / paid orders for this file, including repeated clicks
           // with a different request id. A failed delivery never requires repaying.
-          for(const id of fresh.orders){const old=await tx.get('order:'+id);if(old?.path===path&&old.name===metadata.name&&old.size===metadata.size&&((old.status==='pending'&&old.expiresAt>this.now())||(['paid','fulfilled'].includes(old.status)&&old.paidAt+DAY>this.now())))return old;}
+          for(const id of fresh.orders){const old=await tx.get('order:'+id);if(old?.path===path&&old.name===metadata.name&&old.size===metadata.size&&((old.status==='pending'&&old.expiresAt>this.now())||(['paid','fulfilled'].includes(old.status)&&old.paidAt+DAY>this.now())))return reuse(old);}
           if(fresh.orders.length>=100)throw failure('此浏览器订单较多，请联系站长处理。',429);
           const created={id:'DL'+crypto.randomUUID().replaceAll('-',''),buyer:buyer.key,path,name:metadata.name,size:metadata.size,amountCents:PRICE,status:'pending',createdAt:this.now(),expiresAt:this.now()+900000,until:this.now()+180*DAY,mobile:body.mobile===true};
           fresh.orders.unshift(created.id);await tx.put(buyer.key,fresh);await tx.put('order:'+created.id,created);await tx.put(idemKey,{order:created.id,until:fresh.until});return created;

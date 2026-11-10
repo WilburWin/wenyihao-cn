@@ -221,6 +221,43 @@ test('background recovery confirms a paid order after its browser closes and nev
  assert.equal((await f.service.handle(req('download',{id:order.id},f.cookie))).status,200);
 });
 
+test('buyers can hide only their own orders, with same-origin checks and persistent idempotence',async()=>{
+ const f=await fixture(),{order}=await create(f);
+ const outsider=await f.service.handle(req('session')),otherCookie=outsider.headers.get('set-cookie').split(';')[0];
+ assert.equal((await f.service.handle(req('delete',{id:order.id}))).status,401);
+ assert.equal((await f.service.handle(req('delete',{id:order.id},otherCookie))).status,404);
+ assert.equal((await f.service.handle(req('delete',{id:order.id},f.cookie,'https://other.example'))).status,403);
+ assert.equal((await f.service.handle(req('delete',{id:'invalid'},f.cookie))).status,404);
+ assert.equal((await f.service.handle(req('delete',{id:order.id},f.cookie))).status,200);
+ const saved=await f.storage.get('order:'+order.id);assert.ok(saved.hiddenAt);assert.equal(saved.status,'pending');
+ assert.equal((await f.service.handle(req('delete',{id:order.id},f.cookie))).status,200);
+ assert.equal((await f.storage.get('order:'+order.id)).hiddenAt,saved.hiddenAt);
+ const restarted=new ToolPayments({storage:f.storage,env,safePath,safeDownload,callAgent:()=>assert.fail('Deletion must not resolve files')});
+ assert.deepEqual((await(await restarted.handle(req('session',{restore:true},f.cookie))).json()).orders,[]);
+ assert.equal((await restarted.handle(req('download',{id:order.id},f.cookie))).status,402);
+});
+
+test('hiding pending orders preserves callbacks and existing paid grants without duplicate charges',async()=>{
+ const f=await fixture(),{order}=await create(f);
+ await f.service.handle(req('delete',{id:order.id},f.cookie));
+ assert.equal((await f.service.handle(signedNotify(order))).status,200);
+ assert.equal((await f.storage.get('order:'+order.id)).status,'paid');
+ assert.deepEqual((await(await f.service.handle(req('session',{restore:true},f.cookie))).json()).orders,[]);
+ assert.equal((await f.service.handle(req('download',{id:order.id},f.cookie))).status,200);
+ const reused=await create(f);assert.equal(reused.order.id,order.id);assert.equal(reused.order.status,'fulfilled');
+ assert.equal((await f.storage.get('order:'+order.id)).hiddenAt,undefined);
+ assert.equal((await(await f.service.handle(req('session',{restore:true},f.cookie))).json()).orders.length,1);
+ await f.service.handle(req('delete',{id:order.id},f.cookie));
+ f.service.cfg.enabled=false;assert.equal((await f.service.handle(req('delete',{id:order.id},f.cookie))).status,200);
+ assert.equal((await f.service.handle(req('download',{id:order.id},f.cookie))).status,200);
+});
+
+test('hidden pending orders are reused rather than creating another payable order',async()=>{
+ const f=await fixture(),{order}=await create(f);await f.service.handle(req('delete',{id:order.id},f.cookie));
+ const reused=await create(f);assert.equal(reused.order.id,order.id);assert.equal(reused.order.status,'pending');
+ assert.equal((await f.storage.get('order:'+order.id)).hiddenAt,undefined);
+});
+
 test('official SDK transport signs refund, refund query and close with the expected parameters',async()=>{
  const id='DL'+'b'.repeat(32),refund={id:'RF'+'b'.repeat(32),amountCents:50};let method;
  const client=alipayClient(env,async(url,opts)=>{

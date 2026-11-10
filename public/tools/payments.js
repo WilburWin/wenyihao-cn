@@ -2,10 +2,38 @@ import {showWorkspace,showTask,visibleRows,setBusy} from './workspace.js';
 const $=id=>document.getElementById(id);
 let settings={enabled:false,configured:false},callbacks={},active=null,file=null,poll,busy=false,delivering=false;
 let orders=[],orderOffset=0,guestRequest=null,restoring=false;
+let pendingDelete=null,deleting=false;
+const hiddenOrders=new Set();
 const status=text=>{$('payment-status').textContent=text;};
 async function api(action,body={}){
  const response=await fetch('/api/tools/payments/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body),cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(30000)});
  const data=await response.json();if(!response.ok)throw Error(data.message||'订单请求失败。');return data;
+}
+async function copyOrderId(id,feedback='orders-status'){
+ try{
+  try{await navigator.clipboard.writeText(id);}catch{
+   const field=document.createElement('textarea'),previous=document.activeElement;field.value=id;field.readOnly=true;field.style.cssText='position:fixed;left:-9999px;top:0';
+   (previous?.closest('dialog')||document.body).append(field);field.select();
+   try{if(!document.execCommand('copy'))throw Error();}finally{field.remove();previous?.focus({preventScroll:true});}
+  }
+  $(feedback).textContent='订单号已复制。';
+ }catch{$(feedback).textContent='复制失败，请选中订单号手动复制。';}
+}
+function askDelete(order){
+ if(deleting)return;pendingDelete=order;$('delete-order-file').textContent=order.name;$('delete-order-id').textContent=order.id;
+ $('delete-order-note').textContent=order.status==='pending'?'若已打开支付宝收银台，删除记录后仍可能完成付款；请先核对支付状态。':'同一文件在 24 小时授权期内重新导入，仍可复用原订单，不会重复收费。';
+ $('delete-order-error').textContent='';$('delete-order-dialog').showModal();$('cancel-delete-order').focus();
+}
+async function deleteOrder(){
+ if(!pendingDelete||deleting)return;const id=pendingDelete.id;deleting=true;setBusy('delete-order',true);
+ $('confirm-delete-order').disabled=true;$('cancel-delete-order').disabled=true;$('confirm-delete-order').textContent='正在删除…';$('delete-order-error').textContent='';
+ try{
+  await api('delete',{id});hiddenOrders.add(id);orders=orders.filter(order=>order.id!==id);
+  if(active?.id===id)clearPaymentSelection();renderOrders();$('delete-order-dialog').close();pendingDelete=null;
+  $('orders-status').textContent='订单记录已从列表删除；付款状态和已购授权不变。';
+  ($('order-list').querySelector('.order-reopen')||$('restore-orders')).focus({preventScroll:true});
+ }catch(error){$('delete-order-error').textContent=error.message;}
+ finally{deleting=false;setBusy('delete-order',false);$('confirm-delete-order').disabled=false;$('cancel-delete-order').disabled=false;$('confirm-delete-order').textContent='确认删除记录';}
 }
 function stop(){clearInterval(poll);poll=null;}
 function showCheckout(value){
@@ -16,12 +44,13 @@ export function clearPaymentSelection(){stop();active=null;file=null;$('payment-
 export function choosePaidFile(value){
  clearPaymentSelection();file=value;$('payment-file').textContent=value.name;$('payment-checkout').hidden=false;
  $('create-order').hidden=false;$('create-order').disabled=false;$('alipay-checkout').hidden=true;$('check-order').hidden=true;$('retrieve-order').hidden=true;
- $('payment-order-number').textContent='';status('支付前会先核对文件能否取得下载地址。');showTask('payment');
+ $('payment-order-number').textContent='';$('payment-order-reference').hidden=true;$('payment-copy-status').textContent='';status('支付前会先核对文件能否取得下载地址。');showTask('payment');
 }
 function showOrder(order,reveal=true){
+ if(hiddenOrders.has(order.id))return;
  const index=orders.findIndex(value=>value.id===order.id);if(index<0)orders.unshift(order);else orders[index]=order;renderOrders();
  active=order;$('payment-file').textContent=order.name;
- $('payment-order-number').textContent='订单号：'+order.id;$('create-order').hidden=true;
+ $('payment-order-number').textContent=order.id;$('payment-order-reference').hidden=false;$('payment-copy-status').textContent='';$('create-order').hidden=true;
  const paid=['paid','fulfilled'].includes(order.status)&&!order.refundPending,closed=['closed','refunded'].includes(order.status)||order.refundPending;
  $('retrieve-order').hidden=!paid;$('check-order').hidden=paid||closed;
  if(paid||closed){stop();$('alipay-checkout').hidden=true;$('alipay-checkout').removeAttribute('href');}
@@ -42,16 +71,21 @@ async function check(auto=false){
 }
 function startPolling(){stop();let attempts=0;poll=setInterval(()=>{if(document.hidden)return;if(++attempts>18){stop();return;}check(true);},5000);}
 function renderOrders(values){
- if(values){orders=values;orderOffset=0;}
+ if(values){orders=values.filter(order=>!hiddenOrders.has(order.id));orderOffset=0;}
  $('recent-orders').hidden=orders.length===0;$('orders-empty').hidden=orders.length>0;
  const count=visibleRows($('order-list'),'--order-row-height',4);orderOffset=Math.min(orderOffset,Math.max(0,orders.length-1));
  $('order-list').replaceChildren(...orders.slice(orderOffset,orderOffset+count).map(order=>{
-  const item=document.createElement('li'),button=document.createElement('button');button.type='button';button.className='order-reopen';button.title=order.name;
+  const item=document.createElement('li'),entry=document.createElement('div'),button=document.createElement('button');item.className='order-item';entry.className='order-entry';button.type='button';button.className='order-reopen';button.title=order.name;
   const description=document.createElement('span');description.className='order-description';
   const name=document.createElement('strong');name.textContent=order.name;
-  const meta=document.createElement('small');meta.textContent='¥0.50 · '+order.id;description.append(name,meta);
+  description.append(name);
   const state=document.createElement('span');state.className='order-state';state.textContent=({pending:'待支付',paid:'已支付',fulfilled:'已取地址',closed:'已关闭',refunded:'已退款'}[order.status]||order.status)+' ↗';
-  button.append(description,state);button.addEventListener('click',()=>{stop();file=null;$('alipay-checkout').hidden=true;showOrder(order);check(false);});item.append(button);return item;
+  button.append(description,state);button.addEventListener('click',()=>{stop();file=null;$('alipay-checkout').hidden=true;showOrder(order);check(false);});
+  const copy=document.createElement('button');copy.type='button';copy.className='order-copy';copy.title='复制订单号';copy.setAttribute('aria-label','复制订单号 '+order.id);
+  const caption=document.createElement('span');caption.className='order-id-caption';caption.textContent='订单号';const number=document.createElement('code');number.textContent=order.id;
+  const hint=document.createElement('span');hint.className='order-copy-hint';hint.textContent='复制';copy.append(caption,number,hint);copy.addEventListener('click',()=>copyOrderId(order.id));
+  const remove=document.createElement('button');remove.type='button';remove.className='order-delete';remove.textContent='删除';remove.setAttribute('aria-label','删除订单记录 '+order.id);remove.addEventListener('click',()=>askDelete(order));
+  entry.append(button,copy);item.append(entry,remove);return item;
  }));
  $('orders-prev').disabled=orderOffset===0;$('orders-next').disabled=orderOffset+count>=orders.length;
  $('orders-page').textContent=orders.length?`${orderOffset+1}–${Math.min(orderOffset+count,orders.length)} / ${orders.length} 笔`:'0 笔';
@@ -72,6 +106,10 @@ export async function startPaidSession(){
 }
 export async function initPayments(options){
  callbacks=options;
+ $('copy-payment-order').addEventListener('click',()=>{if(active)copyOrderId(active.id,'payment-copy-status');});
+ $('cancel-delete-order').addEventListener('click',()=>{if(!deleting){pendingDelete=null;$('delete-order-dialog').close();}});
+ $('confirm-delete-order').addEventListener('click',deleteOrder);
+ $('delete-order-dialog').addEventListener('cancel',event=>{if(deleting)event.preventDefault();else pendingDelete=null;});
  $('guest-start').addEventListener('click',()=>{showWorkspace('import');$('share-input').focus();});
  $('restore-orders').addEventListener('click',restoreOrders);
  $('orders-prev').addEventListener('click',()=>{orderOffset=Math.max(0,orderOffset-visibleRows($('order-list'),'--order-row-height',4));renderOrders();});
@@ -82,7 +120,7 @@ export async function initPayments(options){
   if(!file||busy)return;busy=true;const chosen=file;const button=$('create-order');button.disabled=true;status('正在核对文件并创建订单…');
   try{
    const data=await api('order',{path:chosen.path,requestId:crypto.randomUUID(),mobile:matchMedia('(max-width:700px)').matches});if(file!==chosen)return;
-   showOrder(data.order);
+   hiddenOrders.delete(data.order.id);showOrder(data.order);
    showCheckout(data.checkout);
   }catch(error){if(file===chosen)status(error.message);}finally{busy=false;button.disabled=false;}
  });
