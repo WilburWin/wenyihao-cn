@@ -13,7 +13,7 @@ nav>a>span,.nav-pending>span{display:block;font-size:10px;letter-spacing:.05em;c
 nav>a::after{content:'';position:absolute;height:1px;left:0;right:0;bottom:0;background:var(--amber);transform:scaleX(0);transform-origin:left;transition:transform .2s}
 nav>a:hover::after,nav>a[aria-current]::after{transform:scaleX(1)}nav>a[aria-current]{color:var(--amber)}
 .nav-pending{color:#b0aba3;cursor:default}
-.cover-main{display:grid;grid-template-rows:minmax(24px,2.5fr) auto minmax(24px,1fr);justify-items:center;padding:24px;text-align:center}.cover-main:focus{outline:none}
+.cover-main{display:grid;grid-template-rows:minmax(24px,1fr) auto;align-content:stretch;justify-items:center;padding:24px 24px clamp(24px,5vh,60px);text-align:center}.cover-main:focus{outline:none}
 .identity{grid-row:2;width:100%;max-width:780px}
 h1{font:400 clamp(56px,7.2vw,104px)/1.15 Georgia,'Times New Roman',serif;letter-spacing:.025em;margin:0;text-shadow:0 3px 32px rgb(0 0 0 / 25%)}
 .intro-copy{margin:30px auto 0;max-width:520px;text-wrap:pretty;text-shadow:0 2px 14px var(--night)}
