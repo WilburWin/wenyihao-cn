@@ -12,11 +12,6 @@
   X-Robots-Tag: noindex, nofollow
   Referrer-Policy: no-referrer
 
-/media/*
-  X-Robots-Tag: noindex, nofollow
-  Referrer-Policy: no-referrer
-  Cache-Control: no-store
-
 /tools/*
   X-Robots-Tag: noindex, nofollow
   Referrer-Policy: no-referrer

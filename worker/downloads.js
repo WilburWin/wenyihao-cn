@@ -1,7 +1,7 @@
 // Metadata-only bridge. This service must never fetch or relay file contents.
 import {ToolPayments} from './tool-payments.js';
 const headers={'Content-Type':'application/json; charset=utf-8','Cache-Control':'private, no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'};
-const reply=(value,status=200,extra={})=>new Response(JSON.stringify(value),{status,headers:{...headers,...extra}});
+const reply=(value,status=200)=>new Response(JSON.stringify(value),{status,headers});
 const IMPORT_ERRORS={
   SHARE_INVALID:'请使用百度网盘 /s/ 分享链接或 share/init 链接。',
   SHARE_CODE_INVALID:'分享提取码不正确，请检查后重试。',SHARE_CODE_REQUIRED:'该分享需要四位提取码。',
@@ -49,7 +49,7 @@ export class DownloadBridge{
     if(!ws)return Promise.reject(Error('Agent offline'));
     const id=crypto.randomUUID();
     return new Promise((resolve,reject)=>{
-      const timer=setTimeout(()=>{this.pending.delete(id);reject(Error('Agent timeout'));},message.action==='import'?90000:message.action?.startsWith('media-')?45000:20000);
+      const timer=setTimeout(()=>{this.pending.delete(id);reject(Error('Agent timeout'));},message.action==='import'?90000:20000);
       this.pending.set(id,{resolve,reject,timer});
       try{ws.send(JSON.stringify({id,...message}));}catch(error){clearTimeout(timer);this.pending.delete(id);reject(error);}
     });
@@ -72,7 +72,6 @@ export class DownloadBridge{
       }
       return this.payments().handle(request);
     }
-    if(path.startsWith('/api/tools/media/'))return this.media(request,path);
     if(!['/api/tools/downloads/status','/api/tools/downloads/list','/api/tools/downloads/link','/api/tools/downloads/import'].includes(path))return reply({message:'Not found'},404);
     if(request.method!=='POST')return reply({message:'请使用 POST。'},405);
     if(request.headers.get('Origin')!==new URL(request.url).origin)return reply({message:'来源验证失败。'},403);
@@ -112,46 +111,6 @@ export class DownloadBridge{
       return reply(data);
     }catch(error){return reply({message:IMPORT_ERRORS[error.code]||'网盘服务暂时无法完成请求，请稍后重试。',...(IMPORT_ERRORS[error.code]?{code:error.code}:{})},error.code==='IMPORT_PENDING'||error.code==='IMPORT_BUSY'?409:502);}
   }
-  async media(request,path){
-    const url=new URL(request.url),origin=url.origin;
-    if(request.method!=='GET'&&request.method!=='POST')return reply({message:'请使用 GET 或 POST。'},405);
-    if(request.headers.get('Origin')&&request.headers.get('Origin')!==origin)return reply({message:'来源验证失败。'},403);
-    if(request.method==='POST'&&request.headers.get('Origin')!==origin)return reply({message:'来源验证失败。'},403);
-    const cookie=(request.headers.get('Cookie')||'').split(';').map(x=>x.trim()).find(x=>x.startsWith('media_session='))?.slice('media_session='.length)||'';
-    const sessionKey=async()=>cookie?`media-session:${await this.hash(cookie)}`:null;
-    if(path==='/api/tools/media/status'){
-      const key=await sessionKey(),session=key?await this.ctx.storage.get(key):null;
-      if(session&&session.until>Date.now())return reply({authenticated:true});
-      return reply({authenticated:false});
-    }
-    if(path==='/api/tools/media/login'){
-      if(request.method!=='POST')return reply({message:'请使用 POST。'},405);
-      if(Number(request.headers.get('Content-Length'))>512)return reply({message:'请求无效。'},413);
-      const ip=request.headers.get('CF-Connecting-IP')||'local',bucket='media-login:'+await this.hash(ip);
-      if(!await this.allow(bucket,8))return reply({message:'尝试次数过多，请稍后重试。'},429);
-      if(!this.env.MEDIA_ACCESS_CODE)return reply({message:'影音库登录尚未配置。'},503);
-      let body;try{const text=await request.text();if(text.length>512)return reply({message:'请求无效。'},413);body=JSON.parse(text);}catch{return reply({message:'请求无效。'},400);}
-      if(typeof body?.password!=='string'||body.password.length>128||!await equalSecret(body.password,this.env.MEDIA_ACCESS_CODE))return reply({message:'密码不正确。'},401);
-      const token=Array.from(crypto.getRandomValues(new Uint8Array(32)),x=>x.toString(16).padStart(2,'0')).join(''),until=Date.now()+12*60*60*1000;
-      await this.ctx.storage.put(`media-session:${await this.hash(token)}`,{until});
-      return reply({authenticated:true},200,{'Set-Cookie':`media_session=${token}; Path=/api/tools/media; Max-Age=43200; Secure; HttpOnly; SameSite=Strict`});
-    }
-    if(path==='/api/tools/media/logout'){
-      if(request.method!=='POST')return reply({message:'请使用 POST。'},405);
-      const key=await sessionKey();if(key)await this.ctx.storage.delete(key);
-      return reply({authenticated:false},200,{'Set-Cookie':'media_session=; Path=/api/tools/media; Max-Age=0; Secure; HttpOnly; SameSite=Strict'});
-    }
-    if(path!=='/api/tools/media/list')return reply({message:'Not found'},404);
-    if(request.method!=='POST')return reply({message:'请使用 POST。'},405);
-    const key=await sessionKey(),session=key?await this.ctx.storage.get(key):null;
-    if(!session||session.until<=Date.now())return reply({message:'请先登录影音库。'},401,{'Set-Cookie':'media_session=; Path=/api/tools/media; Max-Age=0; Secure; HttpOnly; SameSite=Strict'});
-    if(!this.agentOnline())return reply({message:'服务器暂未连接，请稍后重试。'},503);
-    if(!await this.allow('media-requests',240))return reply({message:'影音库请求较多，请稍后重试。'},429);
-    let body;try{body=await request.json();body.path=safePath(body.path);if(body.page!==undefined&&(!Number.isInteger(body.page)||body.page<1||body.page>1000))throw Error();}catch{return reply({message:'目录或页码无效。'},400);}
-    try{return reply(await this.agent({action:'media-list',path:body.path,page:body.page||1}));}
-    catch{return reply({message:'无法读取115影音文件，请稍后重试。'},502);}
-  }
-  async hash(value){const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)));return Array.from(digest,x=>x.toString(16).padStart(2,'0')).join('');}
   async allow(key,limit){
     const now=Date.now(),window=key==='global'?86400000:3600000;
     return this.ctx.storage.transaction(async txn=>{
