@@ -141,14 +141,14 @@ export class DownloadBridge{
       const key=await sessionKey();if(key)await this.ctx.storage.delete(key);
       return reply({authenticated:false},200,{'Set-Cookie':'media_session=; Path=/api/tools/media; Max-Age=0; Secure; HttpOnly; SameSite=Strict'});
     }
-    if(!['/api/tools/media/list','/api/tools/media/link'].includes(path))return reply({message:'Not found'},404);
+    if(path!=='/api/tools/media/list')return reply({message:'Not found'},404);
     if(request.method!=='POST')return reply({message:'请使用 POST。'},405);
     const key=await sessionKey(),session=key?await this.ctx.storage.get(key):null;
     if(!session||session.until<=Date.now())return reply({message:'请先登录影音库。'},401,{'Set-Cookie':'media_session=; Path=/api/tools/media; Max-Age=0; Secure; HttpOnly; SameSite=Strict'});
     if(!this.agentOnline())return reply({message:'服务器暂未连接，请稍后重试。'},503);
     if(!await this.allow('media-requests',240))return reply({message:'影音库请求较多，请稍后重试。'},429);
     let body;try{body=await request.json();body.path=safePath(body.path);if(body.page!==undefined&&(!Number.isInteger(body.page)||body.page<1||body.page>1000))throw Error();}catch{return reply({message:'目录或页码无效。'},400);}
-    try{return reply(await this.agent(path.endsWith('/list')?{action:'media-list',path:body.path,page:body.page||1}:{action:'media-link',path:body.path}));}
+    try{return reply(await this.agent({action:'media-list',path:body.path,page:body.page||1}));}
     catch{return reply({message:'无法读取115影音文件，请稍后重试。'},502);}
   }
   async hash(value){const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)));return Array.from(digest,x=>x.toString(16).padStart(2,'0')).join('');}

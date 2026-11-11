@@ -1,6 +1,6 @@
 const $=selector=>document.querySelector(selector);
 const gate=$('#gate'),library=$('#library'),grid=$('#grid'),errorBox=$('#error'),search=$('#search');
-let currentPath='/',currentPage=1,total=0,items=[],playing=[],playerNode=null;
+let currentPath='/',currentPage=1,total=0,items=[];
 async function api(action,body,method='POST'){
   const response=await fetch('/api/tools/media/'+action,{method,headers:body?{'Content-Type':'application/json'}:undefined,body:body?JSON.stringify(body):undefined,credentials:'same-origin',cache:'no-store',signal:AbortSignal.timeout(30000)});
   const data=await response.json().catch(()=>({message:'服务器返回了无效响应。'}));
@@ -28,7 +28,7 @@ function render(){
     const card=document.createElement('button');card.type='button';card.className='media-card '+(item.kind==='folder'?'folder-card':'');
     const art=document.createElement('span');art.className='media-art '+item.kind;art.setAttribute('aria-hidden','true');art.innerHTML=`<span class="art-grid"></span><span class="art-icon">${iconFor(item.kind)}</span><span class="art-kind">${kindLabel(item.kind)}</span>`;
     const text=document.createElement('span');text.className='card-copy';const title=document.createElement('strong');title.textContent=item.name;const meta=document.createElement('small');meta.textContent=item.kind==='folder'?'打开文件夹 · '+item.name+' 里的媒体':`${sizeLabel(item.size)} · ${kindLabel(item.kind)}`;text.append(title,meta);card.append(art,text);
-    card.addEventListener('click',()=>item.kind==='folder'?loadDirectory(item.path,true):item.kind==='image'?openImage(item):playItem(item));grid.append(card);
+    card.addEventListener('click',()=>item.kind==='folder'?loadDirectory(item.path,true):openIn115(item));grid.append(card);
   }
 }
 function setCrumbs(){
@@ -37,29 +37,20 @@ function setCrumbs(){
   $('#folder-title').textContent=parts.at(-1)||'全部媒体';
 }
 async function loadDirectory(path,reset=false){
-  if(reset){currentPath=path;currentPage=1;items=[];}errorBox.hidden=true;grid.innerHTML='<div class="loading"><span class="loader"></span>正在读取云端目录…</div>';setCrumbs();
+  if(reset){currentPath=path;currentPage=1;items=[];}errorBox.hidden=true;errorBox.classList.remove('inline-message-success');grid.innerHTML='<div class="loading"><span class="loader"></span>正在读取云端目录…</div>';setCrumbs();
   try{const data=await api('list',{path:currentPath,page:currentPage});items=reset?data.files:[...items,...data.files];total=data.total;$('#folder-count').textContent=`${items.length} 个媒体项目 · 位于 115 云端`;$('#load-more').hidden=items.length>=total||data.files.length===0;$('#shuffle').hidden=!items.some(x=>x.kind==='video'||x.kind==='audio');render();}
   catch(e){if(e.message.includes('请先登录')){showGate('登录已过期，请重新输入访问密码。');return;}grid.replaceChildren();errorBox.textContent=e.message;errorBox.hidden=false;$('#folder-count').textContent='暂时无法读取目录';}
 }
-function openPlayer(item,source,tag){
-  closePlayer();const stage=$('#player-stage');const media=document.createElement(tag);media.controls=true;media.autoplay=true;media.preload='metadata';media.src=source;media.playsInline=true;media.className=tag==='video'?'video-element':'audio-element';stage.replaceChildren(media);$('#player').hidden=false;playerNode=media;$('#player-title').textContent=item.name;$('#player-size').textContent=`${sizeLabel(item.size)} · 直接连接 115`;$('#player-kind').textContent=tag==='video'?'NOW PLAYING · VIDEO':'NOW PLAYING · AUDIO';$('#player-backdrop').hidden=true;media.addEventListener('error',()=>{$('#player-size').textContent='浏览器无法播放此格式或 115 拒绝了直连请求。可回到 115 客户端播放。';});
+async function openIn115(item){
+  const popup=window.open('https://115.com/?mode=wangpan','_blank','noopener,noreferrer');
+  errorBox.classList.add('inline-message-success');errorBox.hidden=false;
+  try{await navigator.clipboard.writeText(item.name);errorBox.textContent=`已打开 115 网盘，并复制“${item.name}”。在 115 网盘的搜索框中粘贴文件名即可查找。`;}
+  catch{errorBox.textContent=`${popup?'已打开 115 网盘。':'请打开 115 网盘。'}请搜索文件名：${item.name}`;}
 }
-async function playItem(item){
-  try{errorBox.hidden=true;const data=await api('link',{path:item.path});playing=items.filter(x=>['video','audio'].includes(x.kind));openPlayer(data,data.url,data.kind==='audio'?'audio':'video');}
-  catch(e){errorBox.textContent=e.message;errorBox.hidden=false;}
-}
-async function openImage(item){
-  try{const data=await api('link',{path:item.path});closePlayer();const image=document.createElement('img');image.className='image-element';image.alt=item.name;image.src=data.url;image.referrerPolicy='no-referrer';$('#player-stage').replaceChildren(image);$('#player').hidden=false;$('#player-title').textContent=item.name;$('#player-size').textContent=`${sizeLabel(item.size)} · 直接连接 115`;$('#player-kind').textContent='PHOTO VIEW';playerNode=image;}
-  catch(e){errorBox.textContent=e.message;errorBox.hidden=false;}
-}
-function closePlayer(){if(playerNode){playerNode.pause?.();playerNode.removeAttribute('src');playerNode.load?.();playerNode=null;}$('#player').hidden=true;}
-$('#close-player').addEventListener('click',closePlayer);
-$('#player-backdrop').addEventListener('click',closePlayer);
 $('#root-button').addEventListener('click',()=>loadDirectory('/',true));
 $('#refresh').addEventListener('click',()=>loadDirectory(currentPath,true));
 $('#load-more').addEventListener('click',()=>{currentPage++;loadDirectory(currentPath,false);});
 search.addEventListener('input',render);
-$('#shuffle').addEventListener('click',()=>{const tracks=items.filter(x=>['video','audio'].includes(x.kind));if(!tracks.length)return;const item=tracks[Math.floor(Math.random()*tracks.length)];playItem(item);});
-$('#logout').addEventListener('click',async()=>{closePlayer();try{await api('logout',{});}finally{items=[];showGate('');}});
-document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!$('#player').hidden)closePlayer();});
+$('#shuffle').addEventListener('click',()=>{const tracks=items.filter(x=>['video','audio'].includes(x.kind));if(!tracks.length)return;const item=tracks[Math.floor(Math.random()*tracks.length)];openIn115(item);});
+$('#logout').addEventListener('click',async()=>{try{await api('logout',{});}finally{items=[];showGate('');}});
 (async()=>{try{const status=await api('status',undefined,'GET');if(status.authenticated){showLibrary();await loadDirectory('/',true);}else showGate();}catch{showGate();}})();

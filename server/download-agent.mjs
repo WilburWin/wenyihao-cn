@@ -153,12 +153,6 @@ export function createLibrary(config){
     if(['jpg','jpeg','png','webp','gif','avif'].includes(ext))return 'image';
     return null;
   };
-  const safeMediaURL=value=>{
-    const url=new URL(value);
-    const host=url.hostname.toLowerCase();
-    if(url.protocol!=='https:'||url.username||url.password||url.port||!(host==='115.com'||host.endsWith('.115.com')||host==='115yun.com'||host.endsWith('.115yun.com')||host==='115cdn.com'||host.endsWith('.115cdn.com')||host==='115cdn.net'||host.endsWith('.115cdn.net')))throw Error('115 media link rejected');
-    return url.href;
-  };
   return async message=>{
     if(message.action==='import'){
       if(!config.importAuthFile)throw new ImportFailure('IMPORT_NOT_CONFIGURED');
@@ -192,12 +186,6 @@ export function createLibrary(config){
         return [{name:file.name,path:normalizePath((path==='/'?'':path)+'/'+file.name),kind,size:Number(file.size)||0,modified:String(file.modified||'').slice(0,50)}];
       });
       return {path,page,total:Number(data.total)||0,files};
-    }
-    if(message.action==='media-link'){
-      const path=normalizePath(message.path);if(path==='/')throw Error('Invalid media file');
-      const kind=mediaKind(path.slice(path.lastIndexOf('/')+1));if(!['video','audio'].includes(kind))throw Error('Unsupported media type');
-      const data=await mediaApi('get',{path:mediaMount+path,password:''});if(data.is_dir)throw Error('Not a media file');
-      return {name:String(data.name),kind,size:Number(data.size)||0,url:safeMediaURL(data.raw_url)};
     }
     throw Error('Unsupported action');
   };
