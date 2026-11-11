@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="referrer" content="no-referrer"><meta name="theme-color" content="#101216"><meta name="robots" content="noindex,nofollow">
+  <title>私人影音库 · WenYiHao</title>
+  <link rel="stylesheet" href="/media/media.css"><script src="/media/media.js" type="module"></script>
+</head>
+<body>
+  <main class="shell">
+    <section id="gate" class="gate" aria-labelledby="gate-title">
+      <a class="brand" href="/" aria-label="返回 WenYiHao 首页"><span class="brand-mark">W</span><span>WenYiHao <small>PRIVATE MEDIA</small></span></a>
+      <div class="gate-card"><span class="eyebrow">PERSONAL LIBRARY</span><div class="lock-mark" aria-hidden="true">▣</div><h1 id="gate-title">私人影音库</h1><p>输入访问密码，继续浏览你的收藏。</p>
+        <form id="login-form"><label for="password">访问密码</label><div class="password-row"><input id="password" name="password" type="password" autocomplete="current-password" required autofocus><button type="submit" aria-label="登录">进入 <span aria-hidden="true">→</span></button></div><p id="login-message" class="message" role="status" aria-live="polite"></p></form>
+      </div><p class="gate-note">私人访问 · 115 云端文件 · 仅展示影音与图片</p>
+    </section>
+    <section id="library" class="library" hidden>
+      <aside class="sidebar"><a class="brand" href="/" aria-label="返回 WenYiHao 首页"><span class="brand-mark">W</span><span>WenYiHao <small>PRIVATE MEDIA</small></span></a>
+        <div class="side-title"><span class="side-icon">▧</span><div><strong>影音收藏</strong><small>115 云端资料库</small></div></div>
+        <button id="root-button" class="nav-item active" type="button"><span>⌂</span>全部媒体</button>
+        <div class="side-spacer"></div><div class="privacy-note"><span class="status-dot"></span><span>私人空间<small>直接从 115 播放</small></span></div>
+        <button id="logout" class="logout" type="button">退出登录</button>
+      </aside>
+      <section class="content">
+        <header class="topbar"><div class="crumbs" id="crumbs"><span>影音收藏</span></div><div class="top-actions"><label class="search"><span aria-hidden="true">⌕</span><input id="search" type="search" placeholder="搜索当前目录" aria-label="搜索当前目录"></label><button id="refresh" class="icon-button" type="button" aria-label="刷新目录" title="刷新">↻</button></div></header>
+        <div class="library-heading"><div><span class="eyebrow">YOUR COLLECTION</span><h1 id="folder-title">全部媒体</h1><p id="folder-count">正在连接你的影音库…</p></div><button id="shuffle" class="shuffle-button" type="button" hidden><span aria-hidden="true">⤨</span> 随机播放</button></div>
+        <div id="error" class="inline-message" role="status" aria-live="polite" hidden></div><div id="grid" class="media-grid" aria-live="polite"></div>
+        <button id="load-more" class="load-more" type="button" hidden>载入更多</button>
+      </section>
+    </section>
+    <section id="player" class="player" hidden aria-label="媒体播放器"><div class="player-backdrop" id="player-backdrop"></div><button id="close-player" class="close-player" type="button" aria-label="关闭播放器">×</button><div class="player-stage" id="player-stage"></div><div class="player-info"><span class="eyebrow" id="player-kind">NOW PLAYING</span><h2 id="player-title"></h2><p id="player-size"></p></div></section>
+  </main>
+</body>
+</html>

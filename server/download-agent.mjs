@@ -116,7 +116,7 @@ export function createShareImporter(auth,{statePath,fetcher=fetch,now=Date.now}=
 export function createLibrary(config){
   const mount=normalizePath(config.mountPath);
   if(mount==='/')throw Error('A dedicated shared mount is required');
-  let token='',loginPromise,importer;
+  let token='',loginPromise,importer,mediaToken='',mediaLoginPromise;
   async function login(){
     if(!loginPromise)loginPromise=(async()=>{
       const response=await fetch('http://127.0.0.1:5244/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:config.username,password:config.password}),signal:AbortSignal.timeout(10000)});
@@ -130,6 +130,35 @@ export function createLibrary(config){
     const result=await response.json();if(result.code===401&&retry){token='';await login();return api(endpoint,body,false);}
     if(result.code!==200)throw Error('Storage request failed');return result.data;
   }
+  async function mediaLogin(){
+    if(!config.mediaUsername||!config.mediaPassword)throw Error('Media account is not configured');
+    if(!mediaLoginPromise)mediaLoginPromise=(async()=>{
+      const response=await fetch('http://127.0.0.1:5244/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:config.mediaUsername,password:config.mediaPassword}),signal:AbortSignal.timeout(10000)});
+      const data=await response.json();if(data.code!==200||!data.data?.token)throw Error('Media login failed');mediaToken=data.data.token;
+    })().finally(()=>{mediaLoginPromise=null;});
+    return mediaLoginPromise;
+  }
+  async function mediaApi(endpoint,body,retry=true){
+    if(!mediaToken)await mediaLogin();
+    const response=await fetch('http://127.0.0.1:5244/api/fs/'+endpoint,{method:'POST',headers:{'Content-Type':'application/json',Authorization:mediaToken},body:JSON.stringify(body),signal:AbortSignal.timeout(20000)});
+    const result=await response.json();if(result.code===401&&retry){mediaToken='';await mediaLogin();return mediaApi(endpoint,body,false);}
+    if(result.code!==200)throw Error('Media storage request failed');return result.data;
+  }
+  const mediaMount=normalizePath(config.mediaMountPath||'/115');
+  if(mediaMount!=='/115')throw Error('Media mount is fixed to /115');
+  const mediaKind=name=>{
+    const ext=(/\.([a-z0-9]{1,10})$/i.exec(name)||[])[1]?.toLowerCase()||'';
+    if(['mp4','m4v','mkv','mov','webm','avi','ts','m2ts','wmv','flv'].includes(ext))return 'video';
+    if(['mp3','m4a','aac','flac','wav','ogg','opus','wma'].includes(ext))return 'audio';
+    if(['jpg','jpeg','png','webp','gif','avif'].includes(ext))return 'image';
+    return null;
+  };
+  const safeMediaURL=value=>{
+    const url=new URL(value);
+    const host=url.hostname.toLowerCase();
+    if(url.protocol!=='https:'||url.username||url.password||url.port||!(host==='115.com'||host.endsWith('.115.com')||host==='115yun.com'||host.endsWith('.115yun.com')||host==='115cdn.com'||host.endsWith('.115cdn.com')||host==='115cdn.net'||host.endsWith('.115cdn.net')))throw Error('115 media link rejected');
+    return url.href;
+  };
   return async message=>{
     if(message.action==='import'){
       if(!config.importAuthFile)throw new ImportFailure('IMPORT_NOT_CONFIGURED');
@@ -152,6 +181,23 @@ export function createLibrary(config){
       const data=await api('get',{path:mount+(path==='/'?'':path),password:''});if(data.is_dir)throw Error('Not a file');
       if(data.provider&&data.provider!=='BaiduNetdisk')throw Error('Unsupported storage');
       return {name:String(data.name),size:Number(data.size)||0,url:downloadURL(data.raw_url),userAgent:'pan.baidu.com'};
+    }
+    if(message.action==='media-list'){
+      const path=normalizePath(message.path),page=message.page||1;
+      if(!Number.isInteger(page)||page<1||page>1000)throw Error('Invalid media page');
+      const data=await mediaApi('list',{path:mediaMount+(path==='/'?'':path),password:'',page,per_page:100,refresh:false});
+      const files=(data.content||[]).slice(0,100).flatMap(file=>{
+        if(typeof file.name!=='string'||!file.name||/[\\/\x00-\x1f%]/.test(file.name)||['.','..'].includes(file.name))return [];
+        const kind=file.is_dir?'folder':mediaKind(file.name);if(!kind)return [];
+        return [{name:file.name,path:normalizePath((path==='/'?'':path)+'/'+file.name),kind,size:Number(file.size)||0,modified:String(file.modified||'').slice(0,50)}];
+      });
+      return {path,page,total:Number(data.total)||0,files};
+    }
+    if(message.action==='media-link'){
+      const path=normalizePath(message.path);if(path==='/')throw Error('Invalid media file');
+      const kind=mediaKind(path.slice(path.lastIndexOf('/')+1));if(!['video','audio'].includes(kind))throw Error('Unsupported media type');
+      const data=await mediaApi('get',{path:mediaMount+path,password:''});if(data.is_dir)throw Error('Not a media file');
+      return {name:String(data.name),kind,size:Number(data.size)||0,url:safeMediaURL(data.raw_url)};
     }
     throw Error('Unsupported action');
   };

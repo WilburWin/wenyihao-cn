@@ -12,6 +12,7 @@
 | 游戏人生 | `/games/` | 霓虹游戏厅，四张带主题动画的游戏卡片 |
 | 照片墙（暂时下线） | `/photos/` | 入口已移除，页面及图片停止发布，源文件保留供后续改版 |
 | 音乐 | `/music/` | 独立音频播放、队列、随机与循环、音质选择、喜欢与最近播放、可选扫码登录、MV 跳转 |
+| 私人影音库（隐藏入口） | `/media/` | 独立密码登录，浏览115媒体目录，尝试浏览器直连播放；不出现在首页、导航与工具页 |
 | 工具 | `/tools/` | 访问码保护的共享文件；粘贴百度分享链接，云端转存后取得下载地址 |
 | 留言板 | `/guestbook/` | 免登录便签、分页、持久化存储与管理删除接口 |
 
@@ -74,6 +75,7 @@ npm run deploy
 | `GUESTBOOK_ADMIN_TOKEN` | 留言删除授权，未配置时关闭删除接口 |
 | `DOWNLOAD_ACCESS_CODE` | 下载工具的朋友访问码，主站 Worker Secret |
 | `DOWNLOAD_BRIDGE_KEY` | ECS 元数据代理与主站之间的授权，主站 Secret，与朋友访问码分开 |
+| `MEDIA_ACCESS_CODE` | 私人影音库独立访问密码（主站 Worker Secret），不写进仓库 |
 | `MUSIC_API_TRANSPORT` | 普通变量，默认 `socket`；可设为 `fetch` 后重新部署以回退传输 |
 | `MUSIC_AUDIO_DELIVERY` | 默认 `relay` 保持当前音频中转；`direct` 为尚未通过实际 CDN 播放验证的直连试验，不自动回退中转 |
 | `MUSIC_BACKEND_MODE` | 主站变量，`regional` 使用独立音乐服务；`local` 回退主站处理 |
@@ -87,6 +89,8 @@ node scripts/music-session-key.mjs | npx wrangler secret put MUSIC_SESSION_KEY
 已有生产密钥无需重复生成；更换会使现有登录会话失效。不要把机密写进前端、示例配置或 Git。确认变量配置属于当前域名使用的 Worker，并已进入生效的部署版本。`/api/music/auth/status` 可以检查配置状态，不会返回密钥。
 
 音乐 JSON API 使用 Socket 传输，媒体 CDN 保留原生流式请求。它仍从 Cloudflare 出口访问 B站，不能保证所有地区、歌曲或账号可用。独立音轨、CORS、会话加密、412 排查与实测边界见 [音乐实现](docs/music-playback.md)。
+
+隐藏入口 `/media/` 提供 115 私人影音库，不列入任何公共导航。它使用独立访问密码和只读服务器账号，播放地址尝试让浏览器直连 115。页面与部署要求见[私人影音库](docs/private-media.md)。
 
 独立音乐服务采用香港区域偏好，浏览器仍访问主域名，无需新增 DNS 或重新配置登录密钥。主站保留会话加密和解密，服务绑定传递所需数据；账号凭据仍只在请求中临时使用。配置、验收与回退见 [音乐香港部署](docs/music-regional.md)。本地开发继续在本机处理音乐，无需启动第二个 Worker。
 

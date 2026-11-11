@@ -34,7 +34,7 @@ os.chown(folder, 0, account.pw_gid)
 private = folder / 'config.json'
 if private.exists():
     previous = json.loads(private.read_text())
-    for key in ['importAuthFile', 'importStatePath']:
+    for key in ['importAuthFile', 'importStatePath', 'mediaMountPath', 'mediaUsername', 'mediaPassword']:
         if key not in config and key in previous:
             config[key] = previous[key]
 private.write_text(json.dumps(config), encoding='utf-8')

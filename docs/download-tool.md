@@ -48,6 +48,7 @@
 - 转存授权另存 `/etc/website-downloads/baidu-import.json`（640，root:服务组），由一次性配置脚本从已有 AList 挂载读取 OAuth 授权，网页不接触管理员凭据、令牌或 Cookie。OAuth 授权自身并非目录级权限；导入范围由代理代码和 root 所有的配置共同限定。
 - `/var/lib/website-downloads` 由 systemd `StateDirectory` 创建，700、服务账号所有；保存刷新后的 OAuth 授权和最近 200 条导入记录。记录损坏时停止导入，避免丢失待确认状态后重复写入。备份与迁移时将其视为凭据文件。
 - 主站 Secret `DOWNLOAD_BRIDGE_KEY`：连接与读取版本；`DOWNLOAD_ACCESS_CODE`：朋友访问。两者必须不同，不写入公开配置或前端。
+- 私人影音库另用主站 Worker Secret `MEDIA_ACCESS_CODE`；设置后网站 Worker 中的影音库独立口令登录才会开放。115 挂载使用单独只读角色和用户，不与百度网盘共享读取账号。
 - Worker 增加 `DOWNLOADS` 绑定与 `v4-download-bridge` 迁移，保留既有迁移。
 
 接口只允许列目录、取地址和导入分享，不提供删除、移动或任意目的地写入。路径拒绝父目录、反斜线、百分号编码和控制字符；直链只接受 HTTPS 百度域名，拒绝账户令牌参数。分享验证只请求百度固定域名，拒绝跳转到任意其他主机。网页请求必须同源 POST 并携带访问码。每个 IP 哈希桶每小时最多 180 次请求；全站授权文件请求合计每天最多 2000 次。窗口从首次请求计时；这些额度不等于云厂商账单硬上限。
