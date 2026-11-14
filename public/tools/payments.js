@@ -21,7 +21,7 @@ async function copyOrderId(id,feedback='orders-status'){
 }
 function askDelete(order){
  if(deleting)return;pendingDelete=order;$('delete-order-file').textContent=order.name;$('delete-order-id').textContent=order.id;
- $('delete-order-note').textContent=order.status==='pending'?'若已打开支付宝收银台，删除记录后仍可能完成付款；请先核对支付状态。':'同一文件在 24 小时授权期内重新导入，仍可复用原订单，不会重复收费。';
+ $('delete-order-note').textContent=order.status==='pending'?'若已打开支付宝收银台，删除记录后仍可能完成付款；请先核对支付状态。':'同一文件在 24 小时授权期内再次解析，仍可复用原订单，不会重复收费。';
  $('delete-order-error').textContent='';$('delete-order-dialog').showModal();$('cancel-delete-order').focus();
 }
 async function deleteOrder(){
@@ -130,7 +130,7 @@ export async function initPayments(options){
  try{
   const response=await fetch('/api/tools/payments/config',{cache:'no-store',signal:AbortSignal.timeout(15000)});if(!response.ok)throw Error();settings=await response.json();
   $('guest-start').disabled=!settings.enabled;$('guest-start').textContent=settings.enabled?'粘贴链接开始 →':'收款尚未开通';$('restore-orders').hidden=!settings.configured;
-  $('payment-availability').textContent=settings.sandbox?'当前为支付宝沙箱测试，不收取真实资金。':settings.enabled?'¥0.50 / 文件 · 导入不收费，付款后获取地址。':settings.message;
+  $('payment-availability').textContent=settings.sandbox?'当前为支付宝沙箱测试，不收取真实资金。':settings.enabled?'¥0.50 / 文件 · 解析链接不收费，付款后获取地址。':settings.message;
   const id=new URL(location.href).searchParams.get('payment_order');if(id&&/^DL[a-f0-9]{32}$/.test(id)&&settings.configured){const data=await session(true),order=data.orders.find(x=>x.id===id);showWorkspace('orders');if(order){showOrder(order);await check(true);}history.replaceState(null,'',location.pathname+location.hash);}
  }catch{$('payment-availability').textContent='暂时无法读取收款状态，朋友访问码仍可使用。';}
 }

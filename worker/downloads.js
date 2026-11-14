@@ -7,10 +7,10 @@ const IMPORT_ERRORS={
   SHARE_CODE_INVALID:'分享提取码不正确，请检查后重试。',SHARE_CODE_REQUIRED:'该分享需要四位提取码。',
   SHARE_UNAVAILABLE:'无法读取分享，链接可能已失效或不可访问。',SHARE_VERIFICATION_REQUIRED:'百度要求额外验证，请在百度网盘检查分享后再试。',
   SHARE_RATE_LIMITED:'百度暂时限制了请求，请稍后再试。',SHARE_TOO_MANY_FILES:'分享根目录超过 100 项，请使用范围更小的分享。',
-  IMPORT_NOT_CONFIGURED:'站长尚未配置分享转存授权。',IMPORT_AUTH_EXPIRED:'转存授权已失效或缺少权限，请联系站长更新授权。',
-  IMPORT_DIRECTORY_FAILED:'无法创建导入目录，请联系站长检查授权和网盘空间。',IMPORT_QUOTA_EXCEEDED:'百度网盘空间或转存额度不足。',
-  IMPORT_BUSY:'另一个转存任务正在处理，请稍后再试。',IMPORT_PENDING:'上一次转存结果尚待确认，请稍后重试；不会重复提交转存。',
-  IMPORT_STATE_UNAVAILABLE:'转存记录暂时不可用，请联系站长检查服务。',IMPORT_FAILED:'百度未完成转存，请检查分享后重试。'
+  IMPORT_NOT_CONFIGURED:'站长尚未配置分享文件服务。',IMPORT_AUTH_EXPIRED:'网盘授权已失效或缺少权限，请联系站长更新授权。',
+  IMPORT_DIRECTORY_FAILED:'无法准备文件目录，请联系站长检查授权和网盘空间。',IMPORT_QUOTA_EXCEEDED:'百度网盘空间或文件处理额度不足。',
+  IMPORT_BUSY:'另一个文件任务正在处理，请稍后再试。',IMPORT_PENDING:'上一次文件准备结果尚待确认，请稍后重试；无需重复提交。',
+  IMPORT_STATE_UNAVAILABLE:'文件处理记录暂时不可用，请联系站长检查服务。',IMPORT_FAILED:'百度未能准备好文件，请稍后重试或检查分享。'
 };
 export async function equalSecret(a,b){
   if(!a||!b)return false;
@@ -101,7 +101,7 @@ export class DownloadBridge{
     const action=path.endsWith('/import')?'import':path.endsWith('/list')?'list':'link';
     if(!friend){
       if(action==='link')return reply({message:'此文件需要先购买下载授权。'},402);
-      if(action==='list'&&!await payments.allowed(request,body.path))return reply({message:'仅可查看当前浏览器导入的文件。'},403);
+      if(action==='list'&&!await payments.allowed(request,body.path))return reply({message:'仅可查看当前浏览器解析过的分享文件。'},403);
     }
     try{
       const data=await this.agent(action==='import'?{action,link:body.link,code:body.code}:{action,path:body.path,page:body.page||1});

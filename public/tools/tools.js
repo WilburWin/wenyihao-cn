@@ -25,19 +25,19 @@ form.addEventListener('submit',async event=>{
     $('result-link').textContent=current.link;$('result-code').textContent=current.code||'未提供';
     $('open-share').href=current.openUrl;$('empty-result').hidden=true;$('share-result').hidden=false;
     $('share-details').hidden=false;
-    $('result-label').textContent='正在转存';
-    $('result-note').textContent='正在验证分享，转存完成后会打开对应文件。';
+    $('result-label').textContent='正在准备文件';
+    $('result-note').textContent='正在验证分享，文件就绪后会自动打开。';
     // Keep the source and editable override distinct so a new pasted share cannot inherit an old code.
-    $('form-status').textContent='正在解析并转存，请保持页面打开…';
+    $('form-status').textContent='正在解析链接并准备文件，请保持页面打开…';
     importing=true;setBusy('import',true);for(const field of form.querySelectorAll('button,input,textarea'))field.disabled=true;
     const result=await importShare(current);
-    $('result-label').textContent=result.reused?'已找到导入文件':'转存完成';
-    $('result-note').textContent='文件已放入“链接导入”目录，请在文件区下载。';
-    $('form-status').textContent=result.reused?'已使用之前导入的文件，没有重复转存。':'转存完成，已打开导入目录。';
+    $('result-label').textContent='文件已就绪';
+    $('result-note').textContent='请在文件列表中选择文件下载。';
+    $('form-status').textContent=result.reused?'已找到文件，可以下载。':'文件已就绪，已打开文件列表。';
     $('form-status').classList.add('success');
   }catch(error){
     $('form-status').classList.remove('success');$('form-status').textContent=error.message;
-    $('result-label').textContent='未完成转存';$('result-note').textContent=error.message;
+    $('result-label').textContent='文件尚未就绪';$('result-note').textContent=error.message;
     const field=/本站访问码|朋友访问码|访问码不正确/.test(error.message)?$('access-code'):/提取码/.test(error.message)?code:!current?input:null;
     field?.setAttribute('aria-invalid','true');
   }finally{importing=false;setBusy('import',false);for(const field of form.querySelectorAll('button,input,textarea'))field.disabled=false;document.querySelector('#main [aria-invalid="true"]')?.focus();}
@@ -50,7 +50,7 @@ $('paste').addEventListener('click',async()=>{
     const value=await navigator.clipboard.readText();
     if(!value.trim())throw Error();
     input.value=value;code.value='';clearResult();input.focus();
-    $('form-status').textContent='已粘贴，请点击“解析并转存”。';
+    $('form-status').textContent='已粘贴，请点击“解析链接”。';
   }catch{
     $('form-status').classList.remove('success');
     $('form-status').textContent='无法读取剪贴板，请在输入框长按粘贴或使用 Ctrl / ⌘ + V。';input.focus();

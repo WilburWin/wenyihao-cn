@@ -27,21 +27,21 @@
         </div>
         <section id="payment-entry" class="audience-info" aria-labelledby="payment-heading">
           <h2 id="payment-heading">用一次，付一次。</h2><p class="payment-price"><span>¥</span>0.50<small>/ 文件</small></p>
-          <p class="audience-description">先导入，再选择文件付款。<br>同一文件 24 小时内重取地址不另收费。</p>
+          <p class="audience-description">先解析链接，再选择文件付款。<br>同一文件 24 小时内重取地址不另收费。</p>
           <button id="guest-start" class="secondary-button" type="button" disabled>正在连接服务…</button>
           <p id="payment-availability" class="payment-availability" role="status" aria-live="polite">正在读取收款状态…</p>
         </section>
         <section id="friend-entry" class="audience-info" aria-labelledby="friend-heading" hidden>
-          <h2 id="friend-heading">留给朋友的文件。</h2><p class="audience-description">输入本站访问码，即可浏览共享目录，也可以导入自己的分享链接。</p>
+          <h2 id="friend-heading">留给朋友的文件。</h2><p class="audience-description">输入本站访问码，即可浏览共享目录，也可以解析自己的分享链接。</p>
           <form id="library-unlock" class="library-unlock"><label for="access-code">本站访问码</label><div><input id="access-code" type="password" maxlength="100" autocomplete="off" required placeholder="向分享者获取" aria-describedby="access-hint friend-status"><button class="primary-button" type="submit">进入 <span aria-hidden="true">→</span></button></div><small id="access-hint">不是百度网盘的四位提取码</small></form>
           <div id="friend-unlocked" hidden><p class="unlocked-label"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#check"/></svg>访问码已验证</p><button type="button" class="secondary-button" data-view-shortcut="files">浏览共享文件 →</button><button id="library-lock" class="reset-button" type="button">退出访问</button></div>
           <p id="friend-status" class="friend-status" role="status" aria-live="polite"></p>
         </section>
-        <div class="sidebar-foot"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#link"/></svg><p>云端转存，直接下载。<small>文件由百度提供，不经过本站服务器。</small></p></div>
+        <div class="sidebar-foot"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#link"/></svg><p>粘贴链接，直接下载。<small>文件由百度提供，不经过本站服务器。</small></p></div>
       </aside>
       <section class="workspace" aria-label="下载工作区">
         <div class="workspace-bar"><div class="workspace-tabs" role="tablist" aria-label="工作区">
-          <button id="tab-import" type="button" role="tab" aria-selected="true" aria-controls="baidu-tool" data-workspace-tab="import">导入链接</button>
+          <button id="tab-import" type="button" role="tab" aria-selected="true" aria-controls="baidu-tool" data-workspace-tab="import">解析链接</button>
           <button id="tab-files" type="button" role="tab" aria-selected="false" aria-controls="file-library" tabindex="-1" data-workspace-tab="files">文件列表</button>
           <button id="tab-orders" type="button" role="tab" aria-selected="false" aria-controls="orders-view" tabindex="-1" data-workspace-tab="orders">我的订单</button>
         </div><span class="workspace-mark" lang="en">LINK → FILE</span></div>
@@ -50,19 +50,19 @@
             <form id="share-form" novalidate>
               <div class="share-field"><label class="field-label" for="share-input">百度网盘分享链接<span lang="en">SHARE LINK</span></label><textarea id="share-input" maxlength="4000" rows="4" placeholder="粘贴链接，或包含链接和提取码的分享文字…" aria-describedby="input-hint form-status" required autocomplete="off" spellcheck="false"></textarea><button class="paste-button" id="paste" type="button"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#clipboard"/></svg>粘贴</button></div>
               <div class="import-options"><div class="code-field"><label for="share-code">提取码 <small>选填</small></label><input id="share-code" type="text" maxlength="4" placeholder="自动识别" autocomplete="off" autocapitalize="off" spellcheck="false" aria-describedby="form-status"></div><button class="reset-button" type="reset">清空</button></div>
-              <div class="form-actions"><button class="primary-button" type="submit">解析并转存<svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#arrow"/></svg></button><p class="field-hint" id="input-hint">支持 pan.baidu.com / yun.baidu.com<br><span>转存会占用分享者的网盘空间。</span></p></div>
+              <div class="form-actions"><button class="primary-button" type="submit">解析链接<svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#arrow"/></svg></button><p class="field-hint" id="input-hint">支持 pan.baidu.com / yun.baidu.com<br><span>文件就绪后即可选择下载。</span></p></div>
               <p id="form-status" class="form-status" role="status" aria-live="polite"></p>
             </form>
           </div>
           <aside class="import-guide" aria-label="使用流程与链接识别结果"><div class="result-topline"><span lang="en">HOW IT WORKS</span><span id="result-label">等待输入</span></div>
-            <div id="empty-result" class="empty-result"><h3>从分享，到下载。</h3><ol class="flow-steps"><li><span>01</span><div><strong>粘贴分享</strong><p>链接与提取码，一起识别。</p></div></li><li><span>02</span><div><strong>选择文件</strong><p>云端转存，无需等文件上传。</p></div></li><li><span>03</span><div><strong data-paid-copy>支付后下载</strong><strong data-friend-copy hidden>直接下载</strong><p data-paid-copy>每个文件 ¥0.50，支付宝付款。</p><p data-friend-copy hidden>访问码验证后，无需按次付款。</p></div></li></ol></div>
+            <div id="empty-result" class="empty-result"><h3>从分享，到下载。</h3><ol class="flow-steps"><li><span>01</span><div><strong>粘贴分享</strong><p>链接与提取码，一起识别。</p></div></li><li><span>02</span><div><strong>选择文件</strong><p>自动准备，无需手动上传。</p></div></li><li><span>03</span><div><strong data-paid-copy>支付后下载</strong><strong data-friend-copy hidden>直接下载</strong><p data-paid-copy>每个文件 ¥0.50，支付宝付款。</p><p data-friend-copy hidden>访问码验证后，无需按次付款。</p></div></li></ol></div>
             <div id="share-result" class="share-result" hidden><span class="result-icon"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#link"/></svg></span><h3>分享已识别</h3><dl class="result-data"><div><dt>分享地址</dt><dd id="result-link"></dd></div><div><dt>提取码</dt><dd id="result-code">—</dd></div></dl><p class="result-note" id="result-note">正在验证分享。</p><div class="share-result-actions"><button class="reset-button" id="copy-share" type="button">复制分享信息</button><a id="open-share" class="open-share" target="_blank" rel="noopener noreferrer" referrerpolicy="no-referrer">在百度打开 ↗</a></div><p id="copy-status" class="copy-status" role="status" aria-live="polite"></p></div>
             <p class="guide-foot"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#shield"/></svg>无需填写百度账号与密码</p>
           </aside>
         </section>
         <section class="workspace-view files-view" id="file-library" role="tabpanel" aria-labelledby="tab-files" data-workspace-view="files" hidden>
-          <div class="view-heading"><div><p class="panel-caption" lang="en">02 / FILES</p><h2 id="library-title">选择要下载的文件</h2></div><button class="secondary-button" type="button" data-view-shortcut="import">导入链接 <span aria-hidden="true">＋</span></button></div>
-          <div id="files-empty" class="view-empty"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#folder"/></svg><h3>文件会出现在这里</h3><p data-paid-copy>先导入一份分享，再选择文件付款下载。</p><p data-friend-copy hidden>输入访问码，即可查看共享文件。</p><button class="secondary-button" id="files-empty-action" type="button">去导入链接 →</button></div>
+          <div class="view-heading"><div><p class="panel-caption" lang="en">02 / FILES</p><h2 id="library-title">选择要下载的文件</h2></div><button class="secondary-button" type="button" data-view-shortcut="import">解析链接 <span aria-hidden="true">＋</span></button></div>
+          <div id="files-empty" class="view-empty"><svg class="icon" aria-hidden="true"><use href="/tools/icons.svg#folder"/></svg><h3>文件会出现在这里</h3><p data-paid-copy>先解析一份分享，再选择文件付款下载。</p><p data-friend-copy hidden>输入访问码，即可查看共享文件。</p><button class="secondary-button" id="files-empty-action" type="button">去解析链接 →</button></div>
           <div id="library-content" hidden><div class="folder-toolbar"><button id="folder-up" type="button" class="icon-button" aria-label="返回上一级文件夹" title="上一级" disabled>↑</button><span id="folder-path">共享文件</span><button id="folder-refresh" class="icon-button" type="button" aria-label="刷新文件列表" title="刷新">↻</button></div><ul id="file-list" class="file-list" aria-label="共享文件"></ul><div class="file-pages"><button id="page-prev" type="button" class="icon-button" aria-label="上一页">←</button><span id="page-label">0 项</span><button id="page-next" type="button" class="icon-button" aria-label="下一页">→</button></div></div>
         </section>
         <section class="workspace-view orders-view" id="orders-view" role="tabpanel" aria-labelledby="tab-orders" data-workspace-view="orders" hidden>

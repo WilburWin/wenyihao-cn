@@ -82,17 +82,35 @@ export function createShareImporter(auth,{statePath,fetcher=fetch,now=Date.now}=
     throw new ImportFailure('IMPORT_FAILED');
   }
   function matches(expected,actual){return expected.every(f=>actual.some(x=>x.server_filename===f.server_filename&&!!Number(x.isdir)===!!Number(f.isdir)&&(Number(f.isdir)||Number(x.size)===Number(f.size))));}
+  async function ownShareFiles(share,target){
+    const owner=await api('nas',{method:'uinfo'});
+    if(owner.errno!==0||!owner.uk)throw new ImportFailure([110,111,-6].includes(owner.errno)||owner.error_code?'IMPORT_AUTH_EXPIRED':'IMPORT_FAILED');
+    if(String(owner.uk)!==share.uk)return null;
+    // Baidu rejects transferring a share back to its owner (12 / info.errno 4).
+    // Resolve only the verified share IDs in this account before copying them.
+    const metadata=await api('multimedia',{method:'filemetas',fsids:JSON.stringify(share.files.map(f=>Number(f.fs_id))),dlink:'0'});
+    if(metadata.errno!==0||!Array.isArray(metadata.list)||metadata.list.length!==share.files.length)throw new ImportFailure('SHARE_UNAVAILABLE');
+    return share.files.map(file=>{
+      const source=metadata.list.find(f=>String(f.fs_id)===String(file.fs_id));
+      let path;try{path=normalizePath(source?.path);}catch{throw new ImportFailure('SHARE_UNAVAILABLE');}
+      if(path==='/'||path.split('/').at(-1)!==file.server_filename||!!Number(source.isdir)!==!!Number(file.isdir)||(!Number(file.isdir)&&Number(source.size)!==Number(file.size))||path===target||(Number(file.isdir)&&target.startsWith(path+'/')))throw new ImportFailure('SHARE_UNAVAILABLE');
+      return {path,dest:target,newname:file.server_filename,ondup:'fail'};
+    });
+  }
   async function perform(input,key){
     await load();const share=await shareFiles(input),target=root+'/share-'+key,relative='/链接导入/share-'+key;
     const existing=await directory(target);if(matches(share.files,existing))return {path:relative,reused:true};
     const job=jobs.get(key);if(job?.status==='pending'&&now()-job.when<900000)throw new ImportFailure('IMPORT_PENDING');
+    const ownFiles=await ownShareFiles(share,target);
     for(const path of [root,target]){
       const result=await api('file',{method:'create'},{path,size:'0',isdir:'1',rtype:'0'});
       if(![0,-8].includes(result.errno))throw new ImportFailure([110,111,-6].includes(result.errno)?'IMPORT_AUTH_EXPIRED':'IMPORT_DIRECTORY_FAILED');
     }
     jobs.set(key,{status:'pending',when:now()});await save();
     let result;
-    try{result=await api('share',{method:'transfer',shareid:share.shareId,from:share.uk,ondup:'fail'},{sekey:share.sekey,fsidlist:JSON.stringify(share.files.map(f=>Number(f.fs_id))),path:target,async:'0'});}
+    try{result=ownFiles
+      ?await api('file',{method:'filemanager',opera:'copy'},{filelist:JSON.stringify(ownFiles),ondup:'fail',async:'0'})
+      :await api('share',{method:'transfer',shareid:share.shareId,from:share.uk,ondup:'fail'},{sekey:share.sekey,fsidlist:JSON.stringify(share.files.map(f=>Number(f.fs_id))),path:target,async:'0'});}
     catch{throw new ImportFailure('IMPORT_PENDING');}
     if(result.errno!==0){jobs.set(key,{status:'failed',when:now()});await save();
       if([110,111,-6].includes(result.errno)||result.error_code)throw new ImportFailure('IMPORT_AUTH_EXPIRED');

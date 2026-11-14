@@ -8,7 +8,7 @@ export function setAudience(value,{silent=false}={}){
   $('payment-entry').hidden=value!=='paid';$('friend-entry').hidden=value!=='friend';
   for(const el of document.querySelectorAll('[data-paid-copy]'))el.hidden=value!=='paid';
   for(const el of document.querySelectorAll('[data-friend-copy]'))el.hidden=value!=='friend';
-  $('files-empty-action').textContent=value==='paid'?'去导入链接 →':'输入访问码 →';
+  $('files-empty-action').textContent=value==='paid'?'去解析链接 →':'输入访问码 →';
   if(changed&&!silent)document.dispatchEvent(new CustomEvent('tools:audience',{detail:value}));
 }
 export function setBusy(reason,value){

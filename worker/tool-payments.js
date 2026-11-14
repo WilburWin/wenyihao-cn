@@ -239,7 +239,7 @@ export class ToolPayments{
       }
       if(action==='order'){
         const buyer=await this.buyer(request),path=this.safePath(body.path);
-        if(!await this.allowed(request,path))throw failure('请先导入自己的分享文件，再选择下载。',403);
+        if(!await this.allowed(request,path))throw failure('请先解析自己的分享链接，再选择文件下载。',403);
         if(typeof body.requestId!=='string'||!/^[a-f0-9-]{36}$/.test(body.requestId))throw failure('下单标识无效。');
         // Resolve expired pending orders before allowing another charge for the
         // same file. If the provider cannot confirm, do not create another order.

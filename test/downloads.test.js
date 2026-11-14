@@ -72,8 +72,8 @@ test('share imports accept Baidu short links and cannot choose a destination or 
   assert.equal(shareInput('https://yun.baidu.com/share/init?surl=Example','aB12').short,'Example');
   for(const link of ['https://evil.com/s/1Example','https://pan.baidu.com.evil.com/s/1Example','https://user:secret@pan.baidu.com/s/1Example','https://pan.baidu.com:5244/s/1Example','https://pan.baidu.com/s/1%2e%2e'])assert.throws(()=>shareInput(link));
 });
-function importFixture({wrongCode=false,uncertain=false,redirect=false,statePath}={}){
-  const root='/网站分享/链接导入',file={fs_id:1234,server_filename:'Example.rar',size:123,isdir:0};let completed=false,transfers=0,writes=[];
+function importFixture({wrongCode=false,uncertain=false,redirect=false,statePath,ownShare=false,invalidSource=false,directorySource=false}={}){
+  const root='/网站分享/链接导入',file={fs_id:1234,server_filename:directorySource?'资料':'Example.rar',size:123,isdir:directorySource?1:0};let completed=false,transfers=0,copies=0,writes=[];
   const fetcher=async(value,options={})=>{
     const url=new URL(value),body=new URLSearchParams(options.body||'');
     if(url.pathname.startsWith('/s/'))return redirect?new Response('',{status:302,headers:{Location:'http://127.0.0.1:5244/'}}):new Response('<html></html>');
@@ -81,18 +81,54 @@ function importFixture({wrongCode=false,uncertain=false,redirect=false,statePath
     if(url.pathname==='/share/list')return Response.json({errno:0,share_id:123,uk:456,list:[file],cur_total:1});
     assert.equal(url.searchParams.get('access_token'),'private-oauth');
     const method=url.searchParams.get('method');
+    if(method==='uinfo')return Response.json({errno:0,uk:ownShare?456:789});
+    if(method==='filemetas'){
+      assert.equal(ownShare,true);assert.equal(url.searchParams.get('fsids'),'[1234]');assert.equal(url.searchParams.get('dlink'),'0');
+      return Response.json({errno:0,list:[{...file,path:'/私人资料/'+file.server_filename,fs_id:invalidSource?9999:file.fs_id}]});
+    }
     if(method==='list')return Response.json({errno:0,list:completed?[file]:[]});
     if(method==='create'){writes.push(body.get('path'));assert.ok(body.get('path')===root||body.get('path').startsWith(root+'/share-'));assert.equal(body.get('rtype'),'0');return Response.json({errno:0});}
     if(method==='transfer'){
+      assert.equal(ownShare,false);
       assert.equal(url.searchParams.get('ondup'),'fail');
       transfers++;assert.ok(body.get('path').startsWith(root+'/share-'));assert.equal(body.get('fsidlist'),'[1234]');assert.equal(body.get('sekey'),'private=');
       if(uncertain)throw Error('Network lost after accepting write');completed=true;return Response.json({errno:0});
     }
+    if(method==='filemanager'){
+      assert.equal(ownShare,true);assert.equal(url.searchParams.get('opera'),'copy');assert.equal(body.get('ondup'),'fail');assert.equal(body.get('async'),'0');
+      const list=JSON.parse(body.get('filelist'));assert.equal(list.length,1);assert.equal(list[0].path,'/私人资料/'+file.server_filename);assert.ok(list[0].dest.startsWith(root+'/share-'));assert.equal(list[0].newname,file.server_filename);assert.equal(list[0].ondup,'fail');
+      copies++;if(uncertain)throw Error('Network lost after accepting copy');completed=true;return Response.json({errno:0});
+    }
     assert.fail('Unexpected request');
   };
   const importer=createShareImporter({root,accessToken:'private-oauth',expiresAt:Date.now()+600000},{fetcher,statePath});
-  return {importer,stats:()=>({transfers,writes})};
+  return {importer,stats:()=>({transfers,copies,writes})};
 }
+
+test('shares owned by the connected account use a verified cloud copy and reuse it',async()=>{
+  for(const directorySource of [false,true]){
+    const {importer,stats}=importFixture({ownShare:true,directorySource}),message={link:'https://pan.baidu.com/s/1Example',code:'Ab12'};
+    assert.equal((await importer(message)).reused,false);assert.equal((await importer(message)).reused,true);
+    assert.equal(stats().copies,1);assert.equal(stats().transfers,0);
+  }
+});
+
+test('own shares with inconsistent account metadata fail before any cloud writes',async()=>{
+  const {importer,stats}=importFixture({ownShare:true,invalidSource:true});
+  await assert.rejects(importer({link:'https://pan.baidu.com/s/1Example',code:'Ab12'}),e=>e.code==='SHARE_UNAVAILABLE');
+  assert.equal(stats().copies,0);assert.equal(stats().writes.length,0);
+});
+
+test('uncertain own-share copies are not resubmitted, including after restart',async()=>{
+  const statePath=await mkdtemp(join(tmpdir(),'website-copy-test-'));
+  try{
+    const message={link:'https://pan.baidu.com/s/1Example',code:'Ab12'},first=importFixture({ownShare:true,uncertain:true,statePath});
+    await assert.rejects(first.importer(message),e=>e.code==='IMPORT_PENDING');
+    await assert.rejects(first.importer(message),e=>e.code==='IMPORT_PENDING');assert.equal(first.stats().copies,1);
+    const restarted=importFixture({ownShare:true,statePath});
+    await assert.rejects(restarted.importer(message),e=>e.code==='IMPORT_PENDING');assert.equal(restarted.stats().copies,0);assert.equal(restarted.stats().writes.length,0);
+  }finally{await unlink(join(statePath,'imports.json'));await rmdir(statePath);}
+});
 test('cloud transfer stays under import root and reuses completed files without duplicate writes',async()=>{
   const {importer,stats}=importFixture();const input={link:'https://pan.baidu.com/s/1Example',code:'Ab12',path:'/outside'};
   const result=await importer(input);assert.match(result.path,/^\/链接导入\/share-[a-f0-9]{12}$/);assert.equal(result.reused,false);assert.equal(JSON.stringify(result).includes('private-oauth'),false);
