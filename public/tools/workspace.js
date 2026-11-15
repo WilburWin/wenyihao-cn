@@ -22,9 +22,9 @@ export function showWorkspace(value){
   document.dispatchEvent(new CustomEvent('tools:view',{detail:value}));
 }
 export function showTask(value){
-  const dialog=$('task-dialog');$('payment-checkout').hidden=value!=='payment';$('download-detail').hidden=value!=='download';$('share-detail').hidden=value!=='share';
+  const dialog=$('task-dialog');$('payment-checkout').hidden=value!=='payment';$('download-detail').hidden=value!=='download';$('share-detail').hidden=value!=='share';$('order-files').hidden=value!=='order-files';
   if(value==='share')$('share-detail').append($('share-result'));else restoreShare();
-  $('task-heading').textContent=value==='payment'?'订单与支付':value==='share'?'分享详情':'获取下载地址';
+  $('task-heading').textContent=value==='payment'?'订单与支付':value==='share'?'分享详情':value==='order-files'?'选择下载文件':'批量下载';
   if(!dialog.open)dialog.showModal();
 }
 function restoreShare(){if($('share-detail').contains($('share-result')))document.querySelector('.import-guide').insertBefore($('share-result'),document.querySelector('.guide-foot'));}

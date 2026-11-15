@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {generateKeyPairSync,sign,verify,X509Certificate} from 'node:crypto';
 import {rootCertificates} from 'node:tls';
-import {ToolPayments,paymentSettings,cents,alipayClient} from '../worker/tool-payments.js';
+import {ToolPayments,paymentSettings,cents,alipayClient,sharePrice} from '../worker/tool-payments.js';
 import {safePath,safeDownload,DownloadBridge} from '../worker/downloads.js';
 const merchant=generateKeyPairSync('rsa',{modulusLength:2048}),provider=generateKeyPairSync('rsa',{modulusLength:2048});
 const env={TOOLS_PAYMENT_ENABLED:'true',PAYMENT_SITE_ORIGIN:'https://example.com',ALIPAY_ENV:'sandbox',ALIPAY_APP_ID:'2026000000000001',ALIPAY_SELLER_ID:'2088000000000001',ALIPAY_PRIVATE_KEY:merchant.privateKey.export({type:'pkcs8',format:'pem'}),ALIPAY_PUBLIC_KEY:provider.publicKey.export({type:'spki',format:'pem'})};
@@ -39,6 +39,92 @@ function operator(action,body,secret=adminKey){return new Request('https://examp
 test('payments are disabled without complete configuration, amounts use integer cents',()=>{
  assert.equal(paymentSettings({TOOLS_PAYMENT_ENABLED:'true'}).enabled,false);assert.equal(paymentSettings(env).enabled,true);
  assert.equal(cents('0.50'),50);assert.equal(cents('0.5'),50);for(const value of ['0.501','5e-1','-0.50',0.5,'NaN'])assert.equal(cents(value),null);
+});
+
+test('link pricing changes only above 50GB, 500GB and 1TB using decimal bytes',()=>{
+ for(const [size,price]of [[0,100],[50e9-1,100],[50e9,100],[50e9+1,200],[500e9,200],[500e9+1,300],[1000e9,300],[1000e9+1,500]])assert.equal(sharePrice(size),price);
+ for(const value of [-1,NaN,Infinity,'1',Number.MAX_SAFE_INTEGER+1])assert.throws(()=>sharePrice(value));
+});
+
+test('link orders bind server inventory, sign the tier price, cover nested files and preserve payment checks',async()=>{
+ for(const [size,amount]of [[50e9,100],[50e9+1,200],[500e9+1,300],[1000e9+1,500]]){
+  const f=await fixture(),root=path.slice(0,path.lastIndexOf('/'));let snapshot='a'.repeat(64),changed=false;
+  f.service.callAgent=async message=>{
+   if(message.action==='inventory')return {path:root,snapshot,size,fileCount:2,firstPath:path};
+   if(message.action==='bundle-files')return {path:root,page:message.page,total:2,files:[{path,name:'Example.txt',size:123},{path:root+'/nested/Other.txt',name:'Other.txt',size:123}]};
+   assert.equal(message.action,'bundle-link');assert.equal(message.path,root);assert.equal(message.snapshot,'a'.repeat(64));
+   if(changed||!['Example.txt','nested/Other.txt'].some(name=>message.filePath===root+'/'+name))throw Error('Not in paid snapshot');
+   return {name:message.filePath.split('/').at(-1),size:123,url:'https://a.baidupcs.com/file'};
+  };
+  const quoteResponse=await f.service.handle(req('quote',{path:root,size:1,priceCents:1},f.cookie));assert.equal(quoteResponse.status,200);
+  const {quote}=await quoteResponse.json();assert.equal(quote.priceCents,amount);assert.equal(quote.size,size);
+  const purchase={path:root,kind:'share',quoteId:quote.id,requestId:crypto.randomUUID(),amountCents:1};
+  const createResponse=await f.service.handle(req('order',purchase,f.cookie));assert.equal(createResponse.status,200);const data=await createResponse.json();
+  assert.equal(data.order.priceCents,amount);assert.equal(data.order.kind,'share');assert.equal(data.order.fileCount,2);
+  const repeated=await(await f.service.handle(req('order',{...purchase,requestId:crypto.randomUUID()},f.cookie))).json();assert.equal(repeated.order.id,data.order.id);
+  const checkout=await f.service.handle(new Request(data.checkout,{headers:{Cookie:f.cookie}}));
+  assert.equal(JSON.parse(checkoutParams(await checkout.text()).searchParams.get('biz_content')).total_amount,(amount/100).toFixed(2));
+  assert.equal((await f.service.handle(req('download',{id:data.order.id,path},f.cookie))).status,402);
+  assert.equal((await f.service.handle(req('files',{id:data.order.id},f.cookie))).status,402);
+  assert.equal((await f.service.handle(signedNotify(data.order,{total_amount:'0.50'}))).status,400);
+  assert.equal((await f.service.handle(signedNotify(data.order,{total_amount:(amount/100).toFixed(2)}))).status,200);
+  assert.equal((await(await f.service.handle(req('download',{id:data.order.id},f.cookie))).json()).bundle,true);
+  const manifest=await(await f.service.handle(req('files',{id:data.order.id},f.cookie))).json();assert.equal(manifest.total,2);assert.equal(manifest.files[1].path,root+'/nested/Other.txt');assert.equal(JSON.stringify(manifest).includes('snapshot'),false);
+  const task=await(await f.service.handle(req('task',{id:data.order.id},f.cookie))).json();
+  const localFile=file=>new Request('https://example.com'+task.endpoint+'?'+new URLSearchParams({task:task.token,path:file}));
+  assert.equal((await f.service.handle(localFile(root+'/nested/Other.txt'))).status,302);
+  assert.equal((await f.service.handle(localFile('/other.txt'))).status,403);
+  assert.notEqual((await f.service.handle(localFile(root+'/added.txt'))).status,302);
+  changed=true;assert.notEqual((await f.service.handle(localFile(path))).status,302);changed=false;
+  assert.equal((await f.service.handle(req('files',{id:data.order.id,page:0},f.cookie))).status,400);
+  const covered=await(await f.service.handle(req('order',{path,requestId:crypto.randomUUID()},f.cookie))).json();assert.equal(covered.order.id,data.order.id);assert.equal(covered.checkout,null);
+  const buyer=await f.service.buyer(req('session',{},f.cookie)),buyerRow=await f.storage.get(buyer.key);buyerRow.roots=[];await f.storage.put(buyer.key,buyerRow);
+  f.service.cfg.enabled=false;assert.equal(await f.service.allowed(req('session',{},f.cookie),root+'/nested'),true);
+  assert.equal((await f.service.handle(req('files',{id:data.order.id},f.cookie))).status,200);
+  for(const filePath of [path,root+'/nested/Other.txt'])assert.equal((await f.service.handle(req('download',{id:data.order.id,path:filePath},f.cookie))).status,200);
+  f.service.cfg.enabled=true;buyerRow.roots=[root];await f.storage.put(buyer.key,buyerRow);
+  assert.equal((await f.service.handle(req('download',{id:data.order.id,path:'/other.txt'},f.cookie))).status,403);
+  assert.equal((await f.service.handle(req('download',{id:data.order.id,path:root+'/added.txt'},f.cookie))).status,502);
+  changed=true;assert.equal((await f.service.handle(req('download',{id:data.order.id,path},f.cookie))).status,502);changed=false;
+  snapshot='b'.repeat(64);assert.equal((await f.service.handle(req('order',{...purchase,requestId:crypto.randomUUID()},f.cookie))).status,409);
+  const paid=await f.storage.get('order:'+data.order.id);paid.refund={status:'pending'};await f.storage.put('order:'+paid.id,paid);
+  assert.equal((await f.service.handle(localFile(path))).status,403);
+  assert.equal((await f.service.handle(req('download',{id:data.order.id,path},f.cookie))).status,402);delete paid.refund;await f.storage.put('order:'+paid.id,paid);
+  const foreign=await fixture();assert.equal((await f.service.handle(req('order',purchase,foreign.cookie))).status,401);
+  f.advance(86400001);assert.equal((await f.service.handle(req('download',{id:data.order.id,path},f.cookie))).status,410);
+ }
+});
+
+test('link quotes reject foreign roots, expired quotes and incomplete scans before creating orders',async()=>{
+ const f=await fixture(),root=path.slice(0,path.lastIndexOf('/'));
+ f.service.callAgent=async message=>({path:message.path,snapshot:'a'.repeat(64),size:1,fileCount:1,firstPath:path});
+ assert.equal((await f.service.handle(req('quote',{path:'/链接导入/share-ffffffffffff'},f.cookie))).status,403);
+ const {quote}=await(await f.service.handle(req('quote',{path:root},f.cookie))).json();f.advance(300001);
+ assert.equal((await f.service.handle(req('order',{path:root,kind:'share',quoteId:quote.id,requestId:crypto.randomUUID()},f.cookie))).status,409);
+ f.service.callAgent=async()=>{throw Error('Tree scan incomplete');};
+ assert.equal((await f.service.handle(req('quote',{path:root},f.cookie))).status,502);
+ assert.equal([...await f.storage.list()].filter(([k])=>k.startsWith('order:')).length,0);
+});
+
+test('paid task capabilities redirect downloaders without cookies, validate metadata and revoke on refund or expiry',async()=>{
+ const f=await fixture(),{order}=await create(f);
+ assert.equal((await f.service.handle(req('task',{id:order.id},f.cookie))).status,402);
+ await f.service.handle(signedNotify(order));
+ assert.equal((await f.service.handle(req('task',{id:order.id}))).status,401);
+ f.service.cfg.enabled=false;
+ const issued=await f.service.handle(req('task',{id:order.id},f.cookie));assert.equal(issued.status,200);const task=await issued.json();
+ const get=(file=path,token=task.token,method='GET',origin='https://example.com')=>f.service.handle(new Request(origin+task.endpoint+'?'+new URLSearchParams({task:token,path:file}),{method}));
+ for(const method of ['GET','HEAD']){const response=await get(path,task.token,method);assert.equal(response.status,302);assert.equal(response.headers.get('location'),'https://a.baidupcs.com/file');assert.equal(await response.text(),'');}
+ assert.equal((await get('/other')).status,403);assert.equal((await get(path,'f'.repeat(64))).status,410);assert.equal((await get(path,'bad')).status,410);
+ assert.equal((await get(path,task.token,'GET','https://other.example')).status,403);
+ const original=f.service.callAgent;
+ f.service.callAgent=async()=>({name:'Changed',size:123,url:'https://a.baidupcs.com/file'});assert.equal((await get()).status,409);
+ f.service.callAgent=async()=>({name:'Example.txt',size:123,url:'https://evil.example/file'});assert.notEqual((await get()).status,302);
+ f.service.callAgent=async message=>{const data=await original(message),paid=await f.storage.get('order:'+order.id);paid.refund={status:'pending'};await f.storage.put('order:'+order.id,paid);return data;};
+ assert.equal((await get()).status,403);f.service.callAgent=original;
+ assert.equal((await f.service.handle(req('task',{id:order.id},f.cookie))).status,402);
+ const paid=await f.storage.get('order:'+order.id);delete paid.refund;await f.storage.put('order:'+order.id,paid);
+ f.advance(86400001);assert.equal((await get()).status,410);assert.equal((await f.service.handle(req('task',{id:order.id},f.cookie))).status,410);
 });
 test('only sandbox permits HTTP loopback; local checkout omits an unreachable provider callback',()=>{
  for(const origin of ['http://localhost:8791','http://127.0.0.1:8791']){

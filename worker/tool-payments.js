@@ -1,10 +1,15 @@
 import {AlipaySdk} from 'alipay-sdk';
+import {issueDownloadTask,readDownloadTask} from './download-tasks.js';
 
 const DAY=86400000,PRICE=50,SESSION='__Host-tool-buyer';
 const responseHeaders={'Content-Type':'application/json; charset=utf-8','Cache-Control':'private, no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'};
 const json=(value,status=200,headers={})=>new Response(JSON.stringify(value),{status,headers:{...responseHeaders,...headers}});
 const digest=async value=>Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(value)))).map(x=>x.toString(16).padStart(2,'0')).join('');
 const failure=(message,status=400)=>Object.assign(Error(message),{status});
+export function sharePrice(size){
+  if(!Number.isSafeInteger(size)||size<0)throw failure('链接文件总大小无效。',502);
+  return size>1000e9?500:size>500e9?300:size>50e9?200:100;
+}
 function withoutSdkDebug(operation){
   // Workerd always enables util.debuglog. The SDK logs signed payment requests
   // there, so filter its namespace during these strictly synchronous calls.
@@ -59,7 +64,7 @@ export function alipayClient(env,fetcher=fetch){
     checkout(order){
       return withoutSdkDebug(()=>sdk.pageExec('alipay.trade.page.pay','POST',{
         ...(cfg.notifyUrl?{notifyUrl:cfg.notifyUrl}:{}),returnUrl:cfg.origin+'/tools/?payment_order='+order.id,
-        bizContent:{outTradeNo:order.id,totalAmount:'0.50',subject:'文件下载地址授权',productCode:'FAST_INSTANT_TRADE_PAY',timeExpire:new Date(order.expiresAt+8*3600000).toISOString().slice(0,19).replace('T',' ')}
+        bizContent:{outTradeNo:order.id,totalAmount:((order.amountCents??PRICE)/100).toFixed(2),subject:order.kind==='share'?'分享链接下载地址授权':'文件下载地址授权',productCode:'FAST_INSTANT_TRADE_PAY',timeExpire:new Date(order.expiresAt+8*3600000).toISOString().slice(0,19).replace('T',' ')}
       }));
     },
     verify(params){return params.sign_type==='RSA2'&&sdk.checkNotifySignV2(params);},
@@ -85,9 +90,14 @@ export class ToolPayments{
     if(required)throw failure('请先开启按次下载入口；原浏览器中的订单可继续恢复。',401);return null;
   }
   async allowed(request,path){
-    if(!this.cfg.enabled)return false;
     const buyer=await this.buyer(request,false);
-    return !!buyer?.roots.some(root=>path===root||path.startsWith(root+'/'));
+    if(!buyer)return false;
+    if(this.cfg.enabled&&buyer.roots.some(root=>path===root||path.startsWith(root+'/')))return true;
+    for(const id of buyer.orders){
+      const order=await this.storage.get('order:'+id);
+      if(order?.kind==='share'&&['paid','fulfilled'].includes(order.status)&&!order.refund&&order.paidAt+DAY>this.now()&&(path===order.path||path.startsWith(order.path+'/')))return true;
+    }
+    return false;
   }
   async rememberImport(request,path){
     const buyer=await this.buyer(request);
@@ -99,7 +109,17 @@ export class ToolPayments{
     if(!order||order.buyer!==buyer.key)throw failure('订单不存在，需在下单浏览器中查看。',404);
     return order;
   }
-  publicOrder(order){return {id:order.id,name:order.name,size:order.size,priceCents:order.amountCents,status:order.status,refundPending:!!order.refund&&order.refund.status!=='succeeded',createdAt:order.createdAt,paidAt:order.paidAt||null,expiresAt:order.expiresAt,retryUntil:order.paidAt?order.paidAt+DAY:null};}
+  publicOrder(order){return {id:order.id,name:order.name,size:order.size,kind:order.kind||'file',...(order.kind==='share'?{path:order.path,fileCount:order.fileCount}:{}),priceCents:order.amountCents,status:order.status,refundPending:!!order.refund&&order.refund.status!=='succeeded',createdAt:order.createdAt,paidAt:order.paidAt||null,expiresAt:order.expiresAt,retryUntil:order.paidAt?order.paidAt+DAY:null};}
+  async shareQuote(request,path){
+    const buyer=await this.buyer(request);
+    if(!buyer.roots.includes(path)||!/^\/链接导入\/share-[a-f0-9]{12}$/.test(path))throw failure('请先解析要购买的分享链接。',403);
+    const metadata=await this.callAgent({action:'inventory',path});
+    if(metadata.path!==path||!/^[a-f0-9]{64}$/.test(metadata.snapshot)||!Number.isSafeInteger(metadata.fileCount)||metadata.fileCount<1||typeof metadata.firstPath!=='string'||!metadata.firstPath.startsWith(path+'/'))throw failure('无法完整核对链接内的文件，请稍后重试。',502);
+    this.safePath(metadata.firstPath);const amountCents=sharePrice(metadata.size);
+    const quote={id:crypto.randomUUID(),buyer:buyer.key,path,snapshot:metadata.snapshot,size:metadata.size,fileCount:metadata.fileCount,firstPath:metadata.firstPath,name:'分享链接 · '+metadata.fileCount+' 个文件',amountCents,until:this.now()+300000};
+    await this.storage.put('quote:'+quote.id,quote);
+    return quote;
+  }
   checkoutURL(order){return order.status==='pending'&&order.expiresAt>this.now()&&this.cfg.enabled?this.cfg.origin+'/api/tools/payments/checkout?id='+order.id:null;}
   async schedule(at=this.now()+30000){
     const current=await this.storage.getAlarm?.();
@@ -202,7 +222,22 @@ export class ToolPayments{
   async handle(request){
     const url=new URL(request.url),action=url.pathname.slice('/api/tools/payments/'.length);
     try{
-      if(action==='config'&&request.method==='GET')return json({enabled:this.cfg.enabled,configured:this.cfg.configured,sandbox:this.cfg.sandbox,priceCents:PRICE,message:this.cfg.enabled?'每个文件 0.50 元，支付后获取下载地址。':'支付宝收款尚未开通，朋友访问码仍可使用。'});
+      if(action==='file'){
+        if(!['GET','HEAD'].includes(request.method)||url.origin!==this.cfg.origin)throw failure('下载任务无效。',403);
+        const grant=await readDownloadTask(this.storage,url.searchParams.get('task'),this.now());
+        if(!grant||grant.kind!=='order')throw failure('下载任务已过期，请在原订单中重新生成。',410);
+        const order=await this.storage.get('order:'+grant.order);
+        if(!order||order.buyer!==grant.buyer||!['paid','fulfilled'].includes(order.status)||order.refund||order.paidAt+DAY<=this.now())throw failure('原订单当前不可下载。',403);
+        const path=this.safePath(url.searchParams.get('path'));
+        if(order.kind==='share'?!path.startsWith(order.path+'/'):path!==order.path)throw failure('文件不属于此下载任务。',403);
+        const data=await this.callAgent(order.kind==='share'?{action:'bundle-link',path:order.path,snapshot:order.snapshot,filePath:path}:{action:'link',path});
+        if(order.kind!=='share'&&(data.name!==order.name||data.size!==order.size))throw failure('文件已变化，请联系站长。',409);
+        // Recheck after I/O so a concurrent refund cannot mint another address.
+        const fresh=await this.storage.get('order:'+order.id);
+        if(!fresh||!['paid','fulfilled'].includes(fresh.status)||fresh.refund||fresh.paidAt+DAY<=this.now())throw failure('原订单当前不可下载。',403);
+        return new Response(null,{status:302,headers:{Location:this.safeDownload(data.url),'Cache-Control':'private, no-store','Referrer-Policy':'no-referrer'}});
+      }
+      if(action==='config'&&request.method==='GET')return json({enabled:this.cfg.enabled,configured:this.cfg.configured,sandbox:this.cfg.sandbox,priceCents:PRICE,sharePricing:[{maxBytes:50e9,priceCents:100},{maxBytes:500e9,priceCents:200},{maxBytes:1000e9,priceCents:300},{maxBytes:null,priceCents:500}],message:this.cfg.enabled?'按文件 0.50 元，按分享链接 1–5 元。':'支付宝收款尚未开通，朋友访问码仍可使用。'});
       if(action==='notify')return await this.notify(request);
       if(action.startsWith('admin/')){if(!this.cfg.configured)throw failure('支付配置尚未完成。',503);return await this.admin(request,action);}
       if(action==='checkout'&&request.method==='GET'){
@@ -216,7 +251,7 @@ export class ToolPayments{
         const form=this.client.checkout(order).replace('</form>','<button type="submit">继续前往支付宝</button></form>');
         return new Response('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>正在前往支付宝</title><p>正在前往支付宝…</p><p>若未自动跳转，请点击下方按钮；请勿重复创建订单。</p>'+form+'</html>',{headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'private, no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action "+targets+' '+this.cfg.origin}});
       }
-      if(!this.cfg.configured||(!this.cfg.enabled&&!['session','status','download','delete'].includes(action)))throw failure('支付宝收款尚未开通，暂不接受付款。',503);
+      if(!this.cfg.configured||(!this.cfg.enabled&&!['session','status','download','files','task','delete'].includes(action)))throw failure('支付宝收款尚未开通，暂不接受付款。',503);
       if(new URL(request.url).origin!==this.cfg.origin||request.headers.get('Origin')!==this.cfg.origin)throw failure('来源验证失败。',403);
       if(request.method!=='POST')throw failure('请使用 POST。',405);
       const body=JSON.parse(await boundedText(request,2048)||'{}');
@@ -237,25 +272,48 @@ export class ToolPayments{
         });
         return json({deleted:true,id:order.id});
       }
+      if(action==='quote'){
+        const quote=await this.shareQuote(request,this.safePath(body.path));
+        return json({quote:{id:quote.id,path:quote.path,size:quote.size,fileCount:quote.fileCount,priceCents:quote.amountCents,name:quote.name,expiresAt:quote.until}});
+      }
       if(action==='order'){
         const buyer=await this.buyer(request),path=this.safePath(body.path);
+        if(body.kind!==undefined&&!['file','share'].includes(body.kind))throw failure('购买方式无效。');
+        const kind=body.kind||'file';
         if(!await this.allowed(request,path))throw failure('请先解析自己的分享链接，再选择文件下载。',403);
         if(typeof body.requestId!=='string'||!/^[a-f0-9-]{36}$/.test(body.requestId))throw failure('下单标识无效。');
+        if(kind==='file')for(const id of buyer.orders){
+          const old=await this.storage.get('order:'+id);
+          if(old?.kind==='share'&&path.startsWith(old.path+'/')&&['paid','fulfilled'].includes(old.status)&&!old.refund&&old.paidAt+DAY>this.now()){
+            try{const file=await this.callAgent({action:'bundle-link',path:old.path,snapshot:old.snapshot,filePath:path});this.safeDownload(file.url);}catch{throw failure('此文件不在原链接订单清单内或已变化，请重新核对链接。',409);}
+            if(old.hiddenAt)await this.storage.transaction(async tx=>{const row=await tx.get('order:'+id);delete row.hiddenAt;await tx.put('order:'+id,row);});
+            return json({order:this.publicOrder(old),checkout:null});
+          }
+        }
         // Resolve expired pending orders before allowing another charge for the
         // same file. If the provider cannot confirm, do not create another order.
-        for(const id of buyer.orders){const old=await this.storage.get('order:'+id);if(old?.path===path&&old.refund?.status==='pending')throw failure('此文件的原订单退款仍在确认，请稍后重试。',409);if(old?.path===path&&old.status==='pending'&&old.expiresAt<=this.now())await this.refreshPending(old);}
+        for(const id of buyer.orders){const old=await this.storage.get('order:'+id);if(old?.path===path&&(old.kind||'file')===kind&&old.refund?.status==='pending')throw failure('原订单退款仍在确认，请稍后重试。',409);if(old?.path===path&&(old.kind||'file')===kind&&old.status==='pending'&&old.expiresAt<=this.now())await this.refreshPending(old);}
         // Verify that this particular file can resolve before accepting money.
-        const metadata=await this.callAgent({action:'link',path});this.safeDownload(metadata.url);
+        let metadata,quote;
+        if(kind==='share'){
+          if(typeof body.quoteId!=='string'||!/^[a-f0-9-]{36}$/.test(body.quoteId))throw failure('请先核对整条链接的价格。');
+          quote=await this.storage.get('quote:'+body.quoteId);
+          if(!quote||quote.buyer!==buyer.key||quote.path!==path||quote.until<=this.now())throw failure('报价已过期，请重新核对链接价格。',409);
+          const verified=await this.shareQuote(request,path);
+          if(verified.snapshot!==quote.snapshot||verified.amountCents!==quote.amountCents)throw failure('链接文件已变化，请重新核对价格。',409);
+          const first=await this.callAgent({action:'bundle-link',path,snapshot:quote.snapshot,filePath:quote.firstPath});this.safeDownload(first.url);
+          metadata={name:quote.name,size:quote.size};
+        }else{metadata=await this.callAgent({action:'link',path});this.safeDownload(metadata.url);}
         if(typeof metadata.name!=='string'||metadata.name.length>255||!Number.isSafeInteger(metadata.size)||metadata.size<0)throw failure('文件信息无效。',502);
         const order=await this.storage.transaction(async tx=>{
           const fresh=await tx.get(buyer.key),idemKey='purchase:'+buyer.key+':'+body.requestId,existing=await tx.get(idemKey);
           const reuse=async old=>{if(old.hiddenAt){delete old.hiddenAt;await tx.put('order:'+old.id,old);}return old;};
-          if(existing){const old=await tx.get('order:'+existing.order);if(old&&old.path===path)return reuse(old);throw failure('请重新选择文件后下单。');}
+          if(existing){const old=await tx.get('order:'+existing.order);if(old&&old.path===path&&(old.kind||'file')===kind&&(kind!=='share'||old.snapshot===quote.snapshot))return reuse(old);throw failure('请重新选择后下单。');}
           // Reuse pending / paid orders for this file, including repeated clicks
           // with a different request id. A failed delivery never requires repaying.
-          for(const id of fresh.orders){const old=await tx.get('order:'+id);if(old?.path===path&&old.name===metadata.name&&old.size===metadata.size&&((old.status==='pending'&&old.expiresAt>this.now())||(['paid','fulfilled'].includes(old.status)&&old.paidAt+DAY>this.now())))return reuse(old);}
+          for(const id of fresh.orders){const old=await tx.get('order:'+id);if(old?.path===path&&(old.kind||'file')===kind&&old.name===metadata.name&&old.size===metadata.size&&(kind!=='share'||old.snapshot===quote.snapshot)&&!old.refund&&((old.status==='pending'&&old.expiresAt>this.now())||(['paid','fulfilled'].includes(old.status)&&old.paidAt+DAY>this.now())))return reuse(old);}
           if(fresh.orders.length>=100)throw failure('此浏览器订单较多，请联系站长处理。',429);
-          const created={id:'DL'+crypto.randomUUID().replaceAll('-',''),buyer:buyer.key,path,name:metadata.name,size:metadata.size,amountCents:PRICE,status:'pending',createdAt:this.now(),expiresAt:this.now()+900000,until:this.now()+180*DAY,mobile:body.mobile===true};
+          const created={id:'DL'+crypto.randomUUID().replaceAll('-',''),buyer:buyer.key,path,kind,name:metadata.name,size:metadata.size,amountCents:kind==='share'?quote.amountCents:PRICE,...(kind==='share'?{snapshot:quote.snapshot,fileCount:quote.fileCount}:{}),status:'pending',createdAt:this.now(),expiresAt:this.now()+900000,until:this.now()+180*DAY,mobile:body.mobile===true};
           fresh.orders.unshift(created.id);await tx.put(buyer.key,fresh);await tx.put('order:'+created.id,created);await tx.put(idemKey,{order:created.id,until:fresh.until});return created;
         });
         await this.schedule();
@@ -271,10 +329,31 @@ export class ToolPayments{
         }
         order=await this.owned(request,body.id);return json({order:this.publicOrder(order),checkout:this.checkoutURL(order)});
       }
-      if(action==='download'){
+      if(action==='download'||action==='files'||action==='task'){
         let order=await this.owned(request,body.id);
         if(!['paid','fulfilled'].includes(order.status)||order.refund)throw failure('订单尚未到账或正在退款，请查询支付结果。',402);
         if(this.now()>order.paidAt+DAY)throw failure('此订单的 24 小时下载地址重试期已结束。',410);
+        if(action==='task'){
+          const task=await issueDownloadTask(this.storage,{kind:'order',order:order.id,buyer:order.buyer},order.paidAt+DAY);
+          await this.schedule();return json({...task,path:order.path,kind:order.kind||'file',name:order.name,endpoint:'/api/tools/payments/file'});
+        }
+        if(action==='files'){
+          if(order.kind!=='share')return json({path:order.path,files:[{path:order.path,name:order.name,size:order.size}],total:1,page:1});
+          const page=body.page??1;if(!Number.isInteger(page)||page<1||page>500)throw failure('页码无效。');
+          const result=await this.callAgent({action:'bundle-files',path:order.path,snapshot:order.snapshot,page});
+          if(result.path!==order.path||!Array.isArray(result.files)||result.files.length>100||!Number.isSafeInteger(result.total)||result.total!==order.fileCount)throw failure('无法完整读取已购文件清单，请重试。',502);
+          return json({path:order.path,page,total:result.total,files:result.files.map(file=>{
+            const path=this.safePath(file.path);if(!path.startsWith(order.path+'/')||typeof file.name!=='string'||!Number.isSafeInteger(file.size)||file.size<0)throw failure('文件清单无效。',502);
+            return {path,name:file.name,size:file.size};
+          })});
+        }
+        if(order.kind==='share'){
+          if(body.path===undefined)return json({bundle:true,path:order.path,order:this.publicOrder(order)});
+          const path=this.safePath(body.path);if(!path.startsWith(order.path+'/'))throw failure('文件不属于此链接订单。',403);
+          const data=await this.callAgent({action:'bundle-link',path:order.path,snapshot:order.snapshot,filePath:path});data.url=this.safeDownload(data.url);
+          await this.storage.transaction(async tx=>{const row=await tx.get('order:'+order.id);if(!['paid','fulfilled'].includes(row.status)||row.refund||this.now()>row.paidAt+DAY)throw failure('订单当前不可下载。',409);row.status='fulfilled';await tx.put('order:'+row.id,row);});
+          return json({name:data.name,size:data.size,url:data.url,userAgent:'pan.baidu.com'});
+        }
         let data=order.download;
         if(!data||this.now()-data.at>600000){data=await this.callAgent({action:'link',path:order.path});data.url=this.safeDownload(data.url);if(data.name!==order.name||data.size!==order.size)throw failure('文件已变更，请联系站长处理该订单。',409);data={name:data.name,size:data.size,url:data.url,userAgent:'pan.baidu.com',at:this.now()};}
         await this.storage.transaction(async tx=>{const row=await tx.get('order:'+order.id);if(!['paid','fulfilled'].includes(row.status)||row.refund)throw failure('订单当前不可下载。',409);row.download=data;row.status='fulfilled';await tx.put('order:'+row.id,row);});

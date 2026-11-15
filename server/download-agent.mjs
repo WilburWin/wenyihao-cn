@@ -24,7 +24,7 @@ export function shareInput(link,code=''){
 export function createShareImporter(auth,{statePath,fetcher=fetch,now=Date.now}={}){
   const root=normalizePath(auth.root);
   if(root==='/'||!root.endsWith('/链接导入'))throw Error('Invalid import root');
-  const jobs=new Map(),active=new Map();let loaded=false,accessToken=auth.accessToken||'',expiresAt=auth.expiresAt||0,refreshPromise;
+  const jobs=new Map(),active=new Map(),snapshots=new Map();let loaded=false,accessToken=auth.accessToken||'',expiresAt=auth.expiresAt||0,refreshPromise;
   async function save(){
     if(!statePath)return;await mkdir(statePath,{recursive:true,mode:0o700});
     const path=statePath+'/imports.json',temp=path+'.tmp';
@@ -97,6 +97,64 @@ export function createShareImporter(auth,{statePath,fetcher=fetch,now=Date.now}=
       return {path,dest:target,newname:file.server_filename,ondup:'fail'};
     });
   }
+  function inventoryRoot(value){
+    const relative=normalizePath(value);
+    if(!/^\/链接导入\/share-[a-f0-9]{12}$/.test(relative))throw new ImportFailure('SHARE_INVALID');
+    return {relative,absolute:root.slice(0,-'/链接导入'.length)+relative};
+  }
+  async function inventory(message){
+    await load();const {relative,absolute}=inventoryRoot(message.path),files=[],dirs=[absolute],seen=new Set(),started=Date.now();let size=0,requests=0;
+    while(dirs.length){
+      const dir=dirs.pop();if(seen.has(dir))throw new ImportFailure('IMPORT_FAILED');seen.add(dir);
+      for(let start=0;;start+=1000){
+        // Never quote a partial tree. Large/slow scans can be retried without a charge.
+        if(++requests>500||seen.size+dirs.length>5000||Date.now()-started>65000)throw new ImportFailure('SHARE_SCAN_LIMIT');
+        const data=await api('file',{method:'list',dir,start:String(start),limit:'1000',order:'name'});
+        if(data.errno!==0||!Array.isArray(data.list)||data.list.length>1000)throw new ImportFailure('IMPORT_FAILED');
+        for(const file of data.list){
+          const name=file.server_filename;
+          if(typeof name!=='string'||!name||/[\\/\x00-\x1f%]/.test(name)||['.','..'].includes(name))throw new ImportFailure('SHARE_UNAVAILABLE');
+          const path=normalizePath(dir+'/'+name);
+          if(file.path!==path||!Number.isSafeInteger(Number(file.fs_id))||Number(file.fs_id)<=0||![0,1].includes(Number(file.isdir)))throw new ImportFailure('SHARE_UNAVAILABLE');
+          if(Number(file.isdir)){dirs.push(path);continue;}
+          const bytes=Number(file.size);if(!Number.isSafeInteger(bytes)||bytes<0||!Number.isSafeInteger(size+bytes))throw new ImportFailure('SHARE_UNAVAILABLE');
+          size+=bytes;files.push({path:relative+path.slice(absolute.length),name,size:bytes,id:String(file.fs_id)});
+          if(files.length>50000)throw new ImportFailure('SHARE_SCAN_LIMIT');
+        }
+        if(data.list.length<1000)break;
+      }
+    }
+    if(!files.length)throw new ImportFailure('SHARE_UNAVAILABLE');
+    files.sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0);
+    if(new Set(files.map(f=>f.path)).size!==files.length)throw new ImportFailure('SHARE_UNAVAILABLE');
+    const payload=JSON.stringify({root:relative,files}),snapshot=createHash('sha256').update(payload).digest('hex');
+    if(statePath){
+      await mkdir(statePath,{recursive:true,mode:0o700});const path=statePath+'/bundle-'+snapshot+'.json',temp=path+'.'+crypto.randomUUID()+'.tmp';
+      await writeFile(temp,payload,{mode:0o600});await rename(temp,path);
+    }else snapshots.set(snapshot,payload);
+    return {path:relative,snapshot,size,fileCount:files.length,firstPath:files[0].path,name:'分享链接 · '+files.length+' 个文件'};
+  }
+  async function inventoryFile(message){
+    await load();const {relative,absolute}=inventoryRoot(message.path);
+    if(!/^[a-f0-9]{64}$/.test(message.snapshot||''))throw new ImportFailure('SHARE_INVALID');
+    const selected=normalizePath(message.filePath);if(!selected.startsWith(relative+'/'))throw new ImportFailure('SHARE_INVALID');
+    let payload;try{payload=statePath?await readFile(statePath+'/bundle-'+message.snapshot+'.json','utf8'):snapshots.get(message.snapshot);}catch{throw new ImportFailure('SHARE_UNAVAILABLE');}
+    if(typeof payload!=='string'||createHash('sha256').update(payload).digest('hex')!==message.snapshot)throw new ImportFailure('SHARE_UNAVAILABLE');
+    const data=JSON.parse(payload),file=data.root===relative&&data.files.find(f=>f.path===selected);
+    if(!file)throw new ImportFailure('SHARE_UNAVAILABLE');
+    const metadata=await api('multimedia',{method:'filemetas',fsids:JSON.stringify([Number(file.id)]),dlink:'0'});
+    const actual=metadata.list?.[0];
+    if(metadata.errno!==0||!actual||String(actual.fs_id)!==file.id||actual.path!==absolute+selected.slice(relative.length)||Number(actual.isdir)!==0||Number(actual.size)!==file.size)throw new ImportFailure('SHARE_UNAVAILABLE');
+    return {path:selected,name:file.name,size:file.size};
+  }
+  async function inventoryFiles(message){
+    await load();const {relative}=inventoryRoot(message.path),page=message.page??1;
+    if(!/^[a-f0-9]{64}$/.test(message.snapshot||'')||!Number.isInteger(page)||page<1||page>500)throw new ImportFailure('SHARE_INVALID');
+    let payload;try{payload=statePath?await readFile(statePath+'/bundle-'+message.snapshot+'.json','utf8'):snapshots.get(message.snapshot);}catch{throw new ImportFailure('SHARE_UNAVAILABLE');}
+    if(typeof payload!=='string'||createHash('sha256').update(payload).digest('hex')!==message.snapshot)throw new ImportFailure('SHARE_UNAVAILABLE');
+    const data=JSON.parse(payload);if(data.root!==relative)throw new ImportFailure('SHARE_UNAVAILABLE');
+    return {path:relative,page,total:data.files.length,files:data.files.slice((page-1)*100,page*100).map(({path,name,size})=>({path,name,size}))};
+  }
   async function perform(input,key){
     await load();const share=await shareFiles(input),target=root+'/share-'+key,relative='/链接导入/share-'+key;
     const existing=await directory(target);if(matches(share.files,existing))return {path:relative,reused:true};
@@ -124,6 +182,9 @@ export function createShareImporter(auth,{statePath,fetcher=fetch,now=Date.now}=
     jobs.set(key,{status:'done',when:now()});await save();return {path:relative,reused:false};
   }
   return async message=>{
+    if(message.action==='inventory')return inventory(message);
+    if(message.action==='inventory-file')return inventoryFile(message);
+    if(message.action==='inventory-files')return inventoryFiles(message);
     const input=shareInput(message.link,message.code),key=createHash('sha256').update(input.short).digest('hex').slice(0,12);
     if(active.has(key))return active.get(key);
     // Serialize writes so persistent state and cloud transfers cannot race.
@@ -149,9 +210,16 @@ export function createLibrary(config){
     if(result.code!==200)throw Error('Storage request failed');return result.data;
   }
   return async message=>{
-    if(message.action==='import'){
+    if(['import','inventory','bundle-link','bundle-files'].includes(message.action)){
       if(!config.importAuthFile)throw new ImportFailure('IMPORT_NOT_CONFIGURED');
       if(!importer){let auth;try{auth=JSON.parse(await readFile(config.importAuthFile,'utf8'));}catch{throw new ImportFailure('IMPORT_NOT_CONFIGURED');}importer=createShareImporter(auth,{statePath:config.importStatePath||'/var/lib/website-downloads'});}
+      if(message.action==='inventory')return importer(message);
+      if(message.action==='bundle-files')return importer({...message,action:'inventory-files'});
+      if(message.action==='bundle-link'){
+        const expected=await importer({...message,action:'inventory-file'}),data=await api('get',{path:mount+expected.path,password:''});
+        if(data.is_dir||data.name!==expected.name||Number(data.size)!==expected.size||data.provider&&data.provider!=='BaiduNetdisk')throw new ImportFailure('SHARE_UNAVAILABLE');
+        return {name:expected.name,size:expected.size,url:downloadURL(data.raw_url),userAgent:'pan.baidu.com'};
+      }
       const result=await importer(message);
       // Imports bypass AList; refresh this directory before the browser opens it.
       try{await api('list',{path:mount+result.path,password:'',page:1,per_page:100,refresh:true});}catch{}

@@ -1,6 +1,7 @@
 import {parseBaiduShare} from './baidu-share.js';
 import {importShare} from './downloads.js';
 import {setBusy} from './workspace.js';
+import './feedback.js';
 
 const $=id=>document.getElementById(id);
 const form=$('share-form'),input=$('share-input'),code=$('share-code');
@@ -32,8 +33,8 @@ form.addEventListener('submit',async event=>{
     importing=true;setBusy('import',true);for(const field of form.querySelectorAll('button,input,textarea'))field.disabled=true;
     const result=await importShare(current);
     $('result-label').textContent='文件已就绪';
-    $('result-note').textContent='请在文件列表中选择文件下载。';
-    $('form-status').textContent=result.reused?'已找到文件，可以下载。':'文件已就绪，已打开文件列表。';
+    $('result-note').textContent='按链接购买后自动生成全部文件的下载任务，也可按单个文件购买。';
+    $('form-status').textContent='文件已就绪。下载任务包含所购全部文件，无需逐个点击。';
     $('form-status').classList.add('success');
   }catch(error){
     $('form-status').classList.remove('success');$('form-status').textContent=error.message;

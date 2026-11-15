@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer"><title>反馈管理</title><link rel="stylesheet" href="/rooms.css"><link rel="stylesheet" href="/tools/tools.css"><script type="module" src="/tools/feedback-admin.js"></script></head>
+<body class="feedback-admin"><main>
+  <header><div><p class="panel-caption">FEEDBACK INBOX</p><h1>反馈管理</h1><p>私密反馈 · 人工处理</p></div><a href="/tools/">返回工具页</a></header>
+  <form id="feedback-admin-login" class="feedback-form"><label for="feedback-admin-key">管理密钥<input id="feedback-admin-key" type="password" required autocomplete="off" placeholder="输入反馈管理密钥"></label><label for="feedback-admin-file">或选择本机管理配置<input id="feedback-admin-file" type="file" accept=".json,application/json"></label><p>密钥仅保存在当前页面内存中，退出或刷新后需要重新登录。</p><button class="primary-button" type="submit">查看反馈</button></form>
+  <section id="feedback-admin-content" hidden><div class="feedback-admin-actions"><button id="feedback-admin-refresh" class="secondary-button" type="button">刷新列表</button><button id="feedback-admin-logout" class="secondary-button" type="button">退出管理</button><span id="feedback-admin-count"></span></div><div id="feedback-admin-list"></div><p id="feedback-admin-empty" hidden>暂无反馈。</p><div class="file-pages"><button id="feedback-admin-prev" class="secondary-button" type="button">上一页</button><span id="feedback-admin-page"></span><button id="feedback-admin-next" class="secondary-button" type="button">下一页</button></div></section>
+  <p id="feedback-admin-status" role="status" aria-live="polite"></p>
+</main></body></html>

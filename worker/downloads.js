@@ -1,12 +1,14 @@
 // Metadata-only bridge. This service must never fetch or relay file contents.
 import {ToolPayments} from './tool-payments.js';
+import {issueDownloadTask,readDownloadTask} from './download-tasks.js';
+import {ToolFeedback} from './tool-feedback.js';
 const headers={'Content-Type':'application/json; charset=utf-8','Cache-Control':'private, no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'};
 const reply=(value,status=200)=>new Response(JSON.stringify(value),{status,headers});
 const IMPORT_ERRORS={
   SHARE_INVALID:'请使用百度网盘 /s/ 分享链接或 share/init 链接。',
   SHARE_CODE_INVALID:'分享提取码不正确，请检查后重试。',SHARE_CODE_REQUIRED:'该分享需要四位提取码。',
   SHARE_UNAVAILABLE:'无法读取分享，链接可能已失效或不可访问。',SHARE_VERIFICATION_REQUIRED:'百度要求额外验证，请在百度网盘检查分享后再试。',
-  SHARE_RATE_LIMITED:'百度暂时限制了请求，请稍后再试。',SHARE_TOO_MANY_FILES:'分享根目录超过 100 项，请使用范围更小的分享。',
+  SHARE_RATE_LIMITED:'百度暂时限制了请求，请稍后再试。',SHARE_TOO_MANY_FILES:'分享根目录超过 100 项，请使用范围更小的分享。',SHARE_SCAN_LIMIT:'暂时无法完整统计此链接，请缩小分享范围或稍后再试，未创建收费订单。',
   IMPORT_NOT_CONFIGURED:'站长尚未配置分享文件服务。',IMPORT_AUTH_EXPIRED:'网盘授权已失效或缺少权限，请联系站长更新授权。',
   IMPORT_DIRECTORY_FAILED:'无法准备文件目录，请联系站长检查授权和网盘空间。',IMPORT_QUOTA_EXCEEDED:'百度网盘空间或文件处理额度不足。',
   IMPORT_BUSY:'另一个文件任务正在处理，请稍后再试。',IMPORT_PENDING:'上一次文件准备结果尚待确认，请稍后重试；无需重复提交。',
@@ -49,13 +51,14 @@ export class DownloadBridge{
     if(!ws)return Promise.reject(Error('Agent offline'));
     const id=crypto.randomUUID();
     return new Promise((resolve,reject)=>{
-      const timer=setTimeout(()=>{this.pending.delete(id);reject(Error('Agent timeout'));},message.action==='import'?90000:20000);
+      const timer=setTimeout(()=>{this.pending.delete(id);reject(Error('Agent timeout'));},['import','inventory'].includes(message.action)?90000:20000);
       this.pending.set(id,{resolve,reject,timer});
       try{ws.send(JSON.stringify({id,...message}));}catch(error){clearTimeout(timer);this.pending.delete(id);reject(error);}
     });
   }
   async fetch(request){
     const path=new URL(request.url).pathname;
+    if(path.startsWith('/api/tools/feedback/'))return new ToolFeedback({storage:this.ctx.storage,env:this.env}).handle(request);
     if(path==='/api/tools/bridge'){
       const protocols=(request.headers.get('Sec-WebSocket-Protocol')||'').split(',').map(x=>x.trim());
       if(request.headers.get('Upgrade')?.toLowerCase()!=='websocket'||protocols[0]!=='website-download-agent'||!await equalSecret(protocols[1],this.env.DOWNLOAD_BRIDGE_KEY))return reply({message:'无权访问。'},403);
@@ -63,16 +66,27 @@ export class DownloadBridge{
       const pair=new WebSocketPair();this.ctx.acceptWebSocket(pair[1]);
       return new Response(null,{status:101,webSocket:pair[0],headers:{'Sec-WebSocket-Protocol':'website-download-agent'}});
     }
+    if(path==='/api/tools/downloads/file'){
+      try{
+        if(!['GET','HEAD'].includes(request.method))return reply({message:'下载任务无效。'},405);
+        const url=new URL(request.url),grant=await readDownloadTask(this.ctx.storage,url.searchParams.get('task'));
+        if(!grant||grant.kind!=='friend')return reply({message:'下载任务已过期，请重新生成。'},410);
+        const file=safePath(url.searchParams.get('path'));
+        if(grant.file?file!==grant.root:(file===grant.root||(grant.root!=='/'&&!file.startsWith(grant.root+'/'))))return reply({message:'文件不属于此下载任务。'},403);
+        const data=await this.agent({action:'link',path:file});
+        return new Response(null,{status:302,headers:{Location:safeDownload(data.url),'Cache-Control':'private, no-store','Referrer-Policy':'no-referrer'}});
+      }catch{return reply({message:'暂时无法取得文件地址，请重新生成下载任务。'},502);}
+    }
     if(path.startsWith('/api/tools/payments/')){
       // Provider callbacks have their own RSA verification and do not depend on
       // a browser Origin or visitor cookie. Other writes remain same-origin.
-      if(!path.endsWith('/notify')&&!path.endsWith('/config')){
+      if(!path.endsWith('/notify')&&!path.endsWith('/config')&&!path.endsWith('/file')){
         const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(request.headers.get('CF-Connecting-IP')||'local'));
         if(!await this.allow('payment-rate:'+Array.from(new Uint8Array(hash)).map(x=>x.toString(16).padStart(2,'0')).join(''),360))return reply({message:'订单请求较多，请稍后重试。'},429);
       }
       return this.payments().handle(request);
     }
-    if(!['/api/tools/downloads/status','/api/tools/downloads/list','/api/tools/downloads/link','/api/tools/downloads/import'].includes(path))return reply({message:'Not found'},404);
+    if(!['/api/tools/downloads/status','/api/tools/downloads/list','/api/tools/downloads/link','/api/tools/downloads/import','/api/tools/downloads/task'].includes(path))return reply({message:'Not found'},404);
     if(request.method!=='POST')return reply({message:'请使用 POST。'},405);
     if(request.headers.get('Origin')!==new URL(request.url).origin)return reply({message:'来源验证失败。'},403);
     const ip=request.headers.get('CF-Connecting-IP')||'local';
@@ -81,7 +95,7 @@ export class DownloadBridge{
     if(!await this.allow(bucket,180))return reply({message:'请求较多，请稍后再试。'},429);
     const friend=await equalSecret(request.headers.get('X-Download-Code'),this.env.DOWNLOAD_ACCESS_CODE),payments=this.payments();
     if(!friend){
-      if(!payments.cfg.enabled)return reply({message:'访问码不正确。'},401);
+      if(!payments.cfg.configured)return reply({message:'访问码不正确。'},401);
       try{await payments.buyer(request);}catch{return reply({message:'请先输入访问码或开启按次下载。'},401);}
     }
     if(path.endsWith('/status'))return reply({online:this.agentOnline()});
@@ -98,8 +112,14 @@ export class DownloadBridge{
       if(body.page!==undefined&&(!Number.isInteger(body.page)||body.page<1||body.page>1000))throw Error('页码无效。');
     }catch{return reply({message:'文件路径或页码无效。'},400);}
     if(!this.agentOnline())return reply({message:'下载服务暂未连接，请稍后再试。'},503);
+    if(path.endsWith('/task')){
+      if(!friend)return reply({message:'请使用已购订单生成下载任务。'},403);
+      const task=await issueDownloadTask(this.ctx.storage,{kind:'friend',root:body.path,file:body.kind==='file'},Date.now()+3600000);
+      return reply({...task,path:body.path,kind:body.kind==='file'?'file':'share',endpoint:'/api/tools/downloads/file'});
+    }
     const action=path.endsWith('/import')?'import':path.endsWith('/list')?'list':'link';
     if(!friend){
+      if(action==='import'&&!payments.cfg.enabled)return reply({message:'暂不接受新的链接请求，已购订单仍可使用。'},503);
       if(action==='link')return reply({message:'此文件需要先购买下载授权。'},402);
       if(action==='list'&&!await payments.allowed(request,body.path))return reply({message:'仅可查看当前浏览器解析过的分享文件。'},403);
     }

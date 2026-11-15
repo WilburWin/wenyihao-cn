@@ -41,6 +41,24 @@ test('authenticated bridge sends metadata operations, never fetches the returned
   const response=await b.fetch(request('link',{path:'/file'}));assert.equal(response.status,200);assert.equal((await response.json()).url,'https://a.baidupcs.com/file');
 });
 
+test('friend batch capabilities work without browser headers and stay scoped, temporary and metadata only',async()=>{
+ const {b,map}=bridge();b.agentOnline=()=>true;const calls=[];
+ b.agent=async message=>{calls.push(message);return {name:'a.txt',size:3,url:'https://a.baidupcs.com/file'};};
+ assert.equal((await b.fetch(request('task',{path:'/folder'},'bad'))).status,401);
+ const task=await(await b.fetch(request('task',{path:'/folder'}))).json();
+ assert.match(task.token,/^[a-f0-9]{64}$/);assert.ok(!JSON.stringify([...map]).includes(task.token));
+ const get=(path,token=task.token,method='GET')=>b.fetch(new Request('https://example.com'+task.endpoint+'?'+new URLSearchParams({task:token,path}),{method}));
+ for(const method of ['GET','HEAD']){const response=await get('/folder/nested/a.txt',task.token,method);assert.equal(response.status,302);assert.equal(response.headers.get('location'),'https://a.baidupcs.com/file');assert.equal(await response.text(),'');}
+ assert.equal((await get('/folder-other/a.txt')).status,403);assert.equal((await get('/folder')).status,403);assert.equal((await get('/other/a.txt')).status,403);
+ assert.equal((await get('/folder/a.txt','a'.repeat(64))).status,410);assert.equal((await get('/folder/a.txt','bad')).status,410);
+ assert.equal(calls.length,2);assert.ok(calls.every(call=>call.action==='link'));
+ const single=await(await b.fetch(request('task',{path:'/a.txt',kind:'file'}))).json();
+ assert.equal((await get('/a.txt',single.token)).status,302);assert.equal((await get('/a.txt/b',single.token)).status,403);
+ const all=await(await b.fetch(request('task',{path:'/'}))).json();assert.equal((await get('/folder/a.txt',all.token)).status,302);
+ for(const [key,row]of map)if(key.startsWith('download-task:'))row.until=0;
+ assert.equal((await get('/folder/a.txt')).status,410);
+});
+
 test('an alternative metadata transport keeps the existing authenticated request flow',async()=>{
  const {b}=bridge();let calls=0;
  b.agentOnline=()=>true;b.agent=async message=>{calls++;assert.equal(message.action,'list');assert.equal(message.path,'/');return {files:[],total:0};};
@@ -71,6 +89,38 @@ test('share imports accept Baidu short links and cannot choose a destination or 
   assert.equal(shareInput('https://pan.baidu.com/s/1Example?pwd=Ab12').code,'Ab12');
   assert.equal(shareInput('https://yun.baidu.com/share/init?surl=Example','aB12').short,'Example');
   for(const link of ['https://evil.com/s/1Example','https://pan.baidu.com.evil.com/s/1Example','https://user:secret@pan.baidu.com/s/1Example','https://pan.baidu.com:5244/s/1Example','https://pan.baidu.com/s/1%2e%2e'])assert.throws(()=>shareInput(link));
+});
+
+test('link inventory scans nested folders and every page; snapshot survives restart and rejects new or changed files',async()=>{
+ const statePath=await mkdtemp(join(tmpdir(),'website-inventory-test-')),root='/网站分享/链接导入',relative='/链接导入/share-123456abcdef',absolute='/网站分享'+relative;
+ let changed=false,incomplete=false;const calls=[];
+ const file=(i,dir=absolute)=>({server_filename:'file-'+i+'.txt',path:dir+'/file-'+i+'.txt',fs_id:i+1,size:100,isdir:0});
+ const fetcher=async value=>{
+  const u=new URL(value),method=u.searchParams.get('method');calls.push({method,dir:u.searchParams.get('dir'),start:u.searchParams.get('start')});
+  if(method==='list'){
+   if(incomplete)return Response.json({errno:-1});
+   const dir=u.searchParams.get('dir'),start=Number(u.searchParams.get('start'));
+   if(dir===absolute)return Response.json({errno:0,list:start===0?[{server_filename:'nested',path:dir+'/nested',fs_id:9999,size:0,isdir:1},...Array.from({length:999},(_,i)=>file(i))]:[file(999)]});
+   assert.equal(dir,absolute+'/nested');return Response.json({errno:0,list:[file(1000,dir)]});
+  }
+  assert.equal(method,'filemetas');const id=JSON.parse(u.searchParams.get('fsids'))[0];
+  return Response.json({errno:0,list:[{...file(id-1,id===1001?absolute+'/nested':absolute),size:changed?101:100}]});
+ };
+ const auth={root,accessToken:'private',expiresAt:Date.now()+600000};
+ try{
+  const importer=createShareImporter(auth,{statePath,fetcher}),summary=await importer({action:'inventory',path:relative});
+  assert.equal(summary.size,100100);assert.equal(summary.fileCount,1001);assert.ok(calls.some(c=>c.start==='1000'));
+  const restored=createShareImporter(auth,{statePath,fetcher}),message={action:'inventory-file',path:relative,snapshot:summary.snapshot,filePath:relative+'/nested/file-1000.txt'};
+  const page=await restored({...message,action:'inventory-files',page:1});assert.equal(page.total,1001);assert.equal(page.files.length,100);assert.deepEqual(Object.keys(page.files[0]),['path','name','size']);
+  assert.equal((await restored({...message,action:'inventory-files',page:11})).files.length,1);
+  await assert.rejects(restored({...message,action:'inventory-files',page:0}));
+  assert.equal((await restored(message)).size,100);
+  await assert.rejects(restored({...message,filePath:relative+'/new.txt'}));
+  await assert.rejects(restored({...message,filePath:'/outside.txt'}));
+  changed=true;await assert.rejects(restored(message));changed=false;
+  incomplete=true;await assert.rejects(restored({action:'inventory',path:relative}));
+  await unlink(join(statePath,'bundle-'+summary.snapshot+'.json'));
+ }finally{await rmdir(statePath);}
 });
 function importFixture({wrongCode=false,uncertain=false,redirect=false,statePath,ownShare=false,invalidSource=false,directorySource=false}={}){
   const root='/网站分享/链接导入',file={fs_id:1234,server_filename:directorySource?'资料':'Example.rar',size:123,isdir:directorySource?1:0};let completed=false,transfers=0,copies=0,writes=[];
