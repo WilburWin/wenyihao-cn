@@ -1,4 +1,4 @@
-import {showWorkspace,showTask,visibleRows,setBusy} from './workspace.js';
+import {showWorkspace,showTask,visibleRows,setBusy,workspace} from './workspace.js';
 import {chooseOrderFiles,clearOrderFiles} from './order-files.js';
 const $=id=>document.getElementById(id);
 const mobileDevice=()=>/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
@@ -7,12 +7,13 @@ let settings={enabled:false,configured:false},callbacks={},active=null,file=null
 let orders=[],orderOffset=0,guestRequest=null,restoring=false,recovering=false;
 let pendingDelete=null,deleting=false;
 let returning=false,resumeOrderId=null;
+let paymentWindow=null,paymentWindowOrder=null;
 const hiddenOrders=new Set();
 const money=value=>'¥'+(value/100).toFixed(2);
 const rootFor=path=>/^\/链接导入\/share-[a-f0-9]{12}(?=\/|$)/.exec(path||'')?.[0];
 function priceDisplay(amount,kind='file',details=''){
  $('checkout-price-label').textContent=kind==='selection'?'勾选文件下载授权':kind==='share'?'整条链接下载授权':'本次文件下载授权';
- $('checkout-amount').textContent=money(amount);$('create-order').textContent='确认金额，下一步 · '+money(amount);
+ $('checkout-amount').textContent=money(amount);$('create-order').textContent='确认金额 · '+money(amount);
  $('checkout-terms').textContent=(kind==='selection'?'付款后 24 小时内，可下载此订单勾选的文件；重新选择仅限已购范围。':kind==='share'?'付款后 24 小时内，当前浏览器可获取此链接内已核对文件的下载地址。':'付款后 24 小时内，当前浏览器可为同一文件重取地址。')+'失败重试不另收费，速度与地址有效期由百度决定。'+details;
 }
 const status=text=>{$('payment-status').textContent=text;};
@@ -49,9 +50,25 @@ async function deleteOrder(){
 function stop(){clearInterval(poll);poll=null;}
 function showCheckout(value){
  $('alipay-checkout').hidden=true;$('alipay-checkout').removeAttribute('href');
- if(!value)return;const url=new URL(value);if(url.origin!==location.origin||url.pathname!=='/api/tools/payments/checkout'||!/^DL[a-f0-9]{32}$/.test(url.searchParams.get('id')||''))throw Error('支付地址未通过校验。');$('alipay-checkout').href=url.href;$('alipay-checkout').target=mobileDevice()?'_self':'_blank';$('alipay-checkout').textContent=active?.checkoutKind==='wap'?'打开支付宝付款 ↗':'前往支付宝支付 ↗';$('alipay-checkout').hidden=false;
+ if(!value)return;const url=new URL(value);if(url.origin!==location.origin||url.pathname!=='/api/tools/payments/checkout'||!/^DL[a-f0-9]{32}$/.test(url.searchParams.get('id')||''))throw Error('支付地址未通过校验。');$('alipay-checkout').href=url.href;$('alipay-checkout').target='_blank';$('alipay-checkout').textContent=active?.checkoutKind==='wap'?'打开支付宝付款 ↗':'打开支付小窗口 ↗';$('alipay-checkout').hidden=false;
 }
-export function clearPaymentSelection(){stop();clearOrderFiles();active=null;file=null;$('payment-checkout').hidden=true;$('retry-quote').hidden=true;$('reselect-order').hidden=true;}
+function openPaymentWindow(event){
+ if(event.ctrlKey||event.metaKey||event.shiftKey||event.altKey)return;
+ event.preventDefault();if(!active||!$('alipay-checkout').hasAttribute('href'))return;
+ try{
+  if(!paymentWindow||paymentWindow.closed||paymentWindowOrder!==active.id){
+   const width=Math.min(520,screen.availWidth||520),height=Math.min(740,screen.availHeight||740);
+   const left=Math.round((screen.availLeft||0)+((screen.availWidth||width)-width)/2),top=Math.round((screen.availTop||0)+((screen.availHeight||height)-height)/2);
+   const popup=window.open('about:blank','_blank',`popup=yes,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes`);
+   if(!popup)throw Error('popup blocked');
+   // The cashier must not be able to navigate the original tools page.
+   popup.opener=null;popup.location.replace($('alipay-checkout').href);paymentWindow=popup;paymentWindowOrder=active.id;
+  }
+  paymentWindow.focus();resumeOrderId=active.id;startPolling();
+  status('请在支付窗口完成付款，本页会自动核对结果。窗口关闭后也可点击“查询付款”。');
+ }catch{status('支付窗口未能打开。请允许本站弹出窗口，再点击付款；当前订单和页面已保留。');}
+}
+export function clearPaymentSelection(){stop();clearOrderFiles();active=null;file=null;$('payment-checkout').hidden=true;$('create-order').hidden=true;$('retry-quote').hidden=true;$('reselect-order').hidden=true;}
 export function choosePaidFile(value){
  const covering=orders.find(order=>order.kind==='share'&&value.path.startsWith(order.path+'/')&&!order.refundPending&&((['paid','fulfilled'].includes(order.status)&&order.retryUntil>Date.now())||(order.status==='pending'&&order.expiresAt>Date.now())));
  if(covering){clearPaymentSelection();file=value;showOrder(covering);if(['paid','fulfilled'].includes(covering.status))retrieve({choose:true,preferredPath:value.path});else check(false);return;}
@@ -65,15 +82,16 @@ export async function choosePaidShare(path){
 }
 export async function choosePaidSelection(path,rules){
  if(busy)return;const root=rootFor(path);if(!root)throw Error('请先解析一条分享链接。');
- busy=true;clearPaymentSelection();const chosen={kind:rules?'selection':'share',path:root,...(rules?{rules:structuredClone(rules)}:{})};file=chosen;
+ clearPaymentSelection();document.body.dataset.checkoutOrigin='selection';const chosen={kind:rules?'selection':'share',path:root,...(rules?{rules:structuredClone(rules)}:{})};file=chosen;
  $('payment-file').textContent='正在统计链接内的文件…';$('payment-checkout').hidden=false;$('create-order').hidden=true;$('alipay-checkout').hidden=true;$('check-order').hidden=true;$('retrieve-order').hidden=true;$('buy-whole-link').hidden=true;$('payment-order-reference').hidden=true;
- priceDisplay(0,'share');status('正在统计全部文件及子文件夹，请稍候；此时不会收费。');showTask('payment');
+ priceDisplay(0,'share');$('checkout-amount').textContent='核价中…';status('正在核对所选文件和金额，此时不会收费。');showTask('payment');
  try{
   const data=await api('quote',{path:root,...(rules?{rules}: {})});if(file!==chosen)return;
   const quote=data.quote;Object.assign(chosen,{quoteId:quote.id,name:quote.name,priceCents:quote.priceCents});
   $('payment-file').textContent=quote.name;priceDisplay(quote.priceCents,chosen.kind,` 本次${rules?'勾选':'购买'} ${quote.fileCount} 个文件，总大小 ${(quote.size/1e9).toLocaleString('zh-CN',{maximumFractionDigits:3})} GB。按 1GB＝10亿字节计算。`);
-  $('create-order').hidden=false;$('create-order').disabled=false;status('已核对全部文件。确认金额后进入下一步，再前往支付宝付款；现在尚未扣款。');
- }catch(error){if(file===chosen){status(error.message+' 可点击“重新统计并核对金额”重试，此时不会收费。');$('retry-quote').hidden=false;}}finally{busy=false;}
+  $('file-selection-summary').textContent=`已选 ${quote.fileCount} 个文件 · ${(quote.size/1e9).toLocaleString('zh-CN',{maximumFractionDigits:3})} GB`;
+  $('create-order').hidden=false;$('create-order').disabled=false;status('金额已核对。确认后创建订单，再前往支付宝付款。');
+ }catch(error){if(file===chosen){$('checkout-amount').textContent='—';status(error.message+' 可重新核价，此时不会收费。');$('retry-quote').hidden=false;}}
 }
 function showOrder(order,reveal=true){
  if(hiddenOrders.has(order.id))return;
@@ -88,8 +106,9 @@ function showOrder(order,reveal=true){
  $('reselect-order').hidden=!(paid&&!expired||order.status==='pending'&&order.expiresAt>Date.now()&&!order.refundPending);
  if(paid||closed){stop();$('alipay-checkout').hidden=true;$('alipay-checkout').removeAttribute('href');}
  status(order.refundPending?'退款正在确认中，请稍后刷新订单查看结果。':expired?'此订单付款后的 24 小时下载有效期已结束。':paid?'已确认到账，下载有效至 '+new Date(order.retryUntil).toLocaleString('zh-CN')+'。':closed?(order.status==='refunded'?'订单已退款。':'订单已关闭。'):Date.now()>order.expiresAt?'付款窗口已结束；若已经付款，请查询结果或联系站长。':'订单待支付；请前往支付宝完成付款，再查询结果。');
- if(reveal)showTask('payment');
+ if(reveal){document.body.dataset.checkoutOrigin='order';showTask('payment');}
 }
+export async function reselectPaidOrder(order){if(!order||delivering)return;showOrder(order,false);await retrieve({choose:true});}
 async function retrieve({choose=false,preferredPath}={}){
  if(!active||delivering)return;delivering=true;const id=active.id;$('retrieve-order').disabled=true;status(choose?'正在读取已购文件，请稍候选择…':'正在准备全部已购文件的下载任务…');
  try{
@@ -117,7 +136,7 @@ async function retrieve({choose=false,preferredPath}={}){
 }
 async function check(auto=false){
  if(!active||busy)return;busy=true;const id=active.id;$('check-order').disabled=true;
- try{const data=await api('status',{id});if(active?.id!==id)return;showOrder(data.order,$('task-dialog').open&&!$('payment-checkout').hidden);showCheckout(data.checkout);if(['paid','fulfilled'].includes(data.order.status)&&!data.order.refundPending&&data.order.retryUntil>Date.now()&&auto)await retrieve();}
+ try{const data=await api('status',{id});if(active?.id!==id)return;showOrder(data.order,workspace()==='files'&&!$('payment-checkout').hidden);showCheckout(data.checkout);if(['paid','fulfilled'].includes(data.order.status)&&!data.order.refundPending&&data.order.retryUntil>Date.now()&&auto)await retrieve();}
  catch(error){if(active?.id===id)status(error.message);stop();}
  finally{busy=false;$('check-order').disabled=false;}
 }
@@ -132,13 +151,18 @@ function renderOrders(values){
   const name=document.createElement('strong');name.textContent=order.name;
   description.append(name);
   const detail=document.createElement('small');detail.textContent=(order.kind==='selection'?'勾选文件':order.kind==='share'?'整条链接':'单个文件')+' · '+money(order.priceCents)+(order.retryUntil?' · '+(order.retryUntil>Date.now()?'有效至 '+new Date(order.retryUntil).toLocaleString('zh-CN'):'24 小时已到期'):'');description.append(detail);
-  const state=document.createElement('span');state.className='order-state';state.textContent=({pending:'待支付',paid:'已支付',fulfilled:'已取地址',closed:'已关闭',refunded:'已退款'}[order.status]||order.status)+' ↗';
+  const valid=['paid','fulfilled'].includes(order.status)&&!order.refundPending&&order.retryUntil>Date.now(),pending=order.status==='pending'&&!order.refundPending&&order.expiresAt>Date.now();
+  const state=document.createElement('span');state.className='order-state';state.textContent=order.refundPending?'退款确认中':['paid','fulfilled'].includes(order.status)&&!valid?'已过期':({pending:'待付款',paid:'已付款',fulfilled:'已付款',closed:'已关闭',refunded:'已退款'}[order.status]||order.status);
   button.append(description,state);button.addEventListener('click',()=>{stop();file=null;$('alipay-checkout').hidden=true;showOrder(order);check(false);});
   const copy=document.createElement('button');copy.type='button';copy.className='order-copy';copy.title='复制订单号';copy.setAttribute('aria-label','复制订单号 '+order.id);
   const caption=document.createElement('span');caption.className='order-id-caption';caption.textContent='订单号';const number=document.createElement('code');number.textContent=order.id;
   const hint=document.createElement('span');hint.className='order-copy-hint';hint.textContent='复制';copy.append(caption,number,hint);copy.addEventListener('click',()=>copyOrderId(order.id));
   const remove=document.createElement('button');remove.type='button';remove.className='order-delete';remove.textContent='删除';remove.setAttribute('aria-label','删除订单记录 '+order.id);remove.addEventListener('click',()=>askDelete(order));
-  entry.append(button,copy);item.append(entry,remove);return item;
+  const actions=document.createElement('div');actions.className='order-main-actions';
+  if(valid||pending){const main=document.createElement('button');main.type='button';main.className='primary-button';main.textContent=valid?'下载 →':'继续付款 →';main.addEventListener('click',()=>{stop();file=null;if(valid){showOrder(order,false);retrieve();}else{showOrder(order);check(false);}});actions.append(main);}
+  if(valid){const reselect=document.createElement('button');reselect.type='button';reselect.className='text-button';reselect.textContent='重新选择文件';reselect.addEventListener('click',()=>reselectPaidOrder(order));actions.append(reselect);}
+  const detailButton=document.createElement('button');detailButton.type='button';detailButton.className='text-button order-detail-action';detailButton.textContent='详情';detailButton.addEventListener('click',()=>button.click());actions.append(detailButton);
+  entry.append(button,actions,copy);item.append(entry,remove);return item;
  }));
  $('orders-prev').disabled=orderOffset===0;$('orders-next').disabled=orderOffset+count>=orders.length;
  $('orders-page').textContent=orders.length?`${orderOffset+1}–${Math.min(orderOffset+count,orders.length)} / ${orders.length} 笔`:'0 笔';
@@ -206,14 +230,14 @@ export async function initPayments(options){
  new ResizeObserver(()=>renderOrders()).observe($('order-list'));
  document.addEventListener('tools:view',event=>{if(event.detail==='orders'){renderOrders();restoreOrders();}});
  $('create-order').addEventListener('click',async()=>{
-  if(!file||busy)return;busy=true;const chosen=file;const button=$('create-order');button.disabled=true;status('正在核对文件并创建订单…');
+  if(!file||busy)return;busy=true;setBusy('payment',true);const chosen=file;const button=$('create-order');button.disabled=true;status('正在核对文件并创建订单…');
   try{
    const data=await api('order',{path:chosen.path,kind:chosen.kind||'file',...(chosen.quoteId?{quoteId:chosen.quoteId}:{}),requestId:crypto.randomUUID(),mobile:mobileDevice(),...(mobileTrial?{mobileTrial:true}:{})});if(file!==chosen)return;
    hiddenOrders.delete(data.order.id);showOrder(data.order);
    showCheckout(data.checkout);
-  }catch(error){if(file===chosen)status(error.message);}finally{busy=false;button.disabled=false;}
+  }catch(error){if(file===chosen)status(error.message);}finally{busy=false;setBusy('payment',false);button.disabled=false;}
  });
- $('alipay-checkout').addEventListener('click',()=>{resumeOrderId=active?.id||null;startPolling();});
+ $('alipay-checkout').addEventListener('click',openPaymentWindow);
  $('check-order').addEventListener('click',()=>check(true));$('retrieve-order').addEventListener('click',()=>retrieve());
  $('reselect-order').addEventListener('click',async()=>{
   if(!active)return;
@@ -222,6 +246,7 @@ export async function initPayments(options){
   try{await callbacks.onReselect?.(order);}catch(error){status(error.message);}finally{$('reselect-order').disabled=false;}
  });
  window.addEventListener('pagehide',stop);
+ window.addEventListener('focus',()=>{if(resumeOrderId&&active?.id===resumeOrderId&&active.status==='pending'&&!returning)check(true);});
  window.addEventListener('pageshow',event=>{if(event.persisted&&resumeOrderId&&!returning)resumePaymentReturn(resumeOrderId);});
  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&resumeOrderId&&active?.id===resumeOrderId&&active.status==='pending'&&!returning)check(true);});
  const loadSettings=async()=>{
@@ -230,7 +255,7 @@ export async function initPayments(options){
   const response=await fetch('/api/tools/payments/config',{cache:'no-store',signal:AbortSignal.timeout(15000)});if(!response.ok)throw Error();settings=await response.json();
   $('guest-start').disabled=!settings.enabled;$('guest-start').textContent=settings.enabled?'粘贴链接开始 →':'收款尚未开通';$('restore-orders').hidden=!settings.configured;
   $('recover-order-submit').disabled=!settings.configured;
-  $('payment-availability').textContent=settings.sandbox?'当前为支付宝沙箱测试，不收取真实资金。':settings.enabled?'单个文件 ¥0.50 · 多文件 ¥1–5，按勾选大小计费。':settings.message;
+  $('payment-availability').textContent=settings.sandbox?'当前为支付宝沙箱测试，不收取真实资金。':settings.enabled?'':settings.message;
   const id=new URL(location.href).searchParams.get('payment_order');if(id&&/^DL[a-f0-9]{32}$/.test(id)&&settings.configured)await resumePaymentReturn(id);
  }catch{
   settings={enabled:false,configured:false,message:'下载服务未连接，请点击“重新连接服务”后重试。'};

@@ -34,8 +34,8 @@ form.addEventListener('submit',async event=>{
     importing=true;setBusy('import',true);for(const field of form.querySelectorAll('button,input,textarea'))field.disabled=true;
     const result=await importShare(current);
     $('result-label').textContent='文件已就绪';
-    $('result-note').textContent='已打开文件列表。默认全部勾选，可调整选择后生成订单。';
-    $('form-status').textContent='文件已就绪，请在文件列表勾选需要的文件，再生成订单。';
+    $('result-note').textContent='文件已就绪，默认全选。';
+    $('form-status').textContent='文件已就绪。调整勾选后继续。';
     $('form-status').classList.add('success');
   }catch(error){
     $('form-status').classList.remove('success');$('form-status').textContent=error.message;
