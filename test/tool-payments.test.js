@@ -33,6 +33,74 @@ function checkoutParams(html){
  for(const match of html.matchAll(/<input type="hidden" name="([^"]+)" value="([^"]*)"/g))url.searchParams.set(match[1],match[2].replaceAll('&quot;','"').replaceAll('&amp;','&'));
  return url;
 }
+test('an order number recovers one paid order on a new browser without moving ownership or extending expiry',async()=>{
+ const f=await fixture(),{order}=await create(f),second=await create(f); // Same-file reuse keeps a single purchase.
+ assert.equal(second.order.id,order.id);await f.service.handle(signedNotify(order));
+ const original=await f.storage.get('order:'+order.id);f.advance(3600000);f.service.cfg.enabled=false;
+ const response=await f.service.handle(req('recover',{id:'  '+order.id.toUpperCase()+'  '}));assert.equal(response.status,200);
+ const cookie=response.headers.get('set-cookie').split(';')[0],data=await response.json();
+ assert.match(response.headers.get('set-cookie'),/HttpOnly; Secure; SameSite=Lax/);
+ assert.equal(data.order.retryUntil,original.paidAt+86400000);
+ assert.equal(JSON.stringify(data).includes('buyer:'),false);assert.equal(JSON.stringify(data).includes('tradeNo'),false);
+ assert.equal((await f.storage.get('order:'+order.id)).buyer,original.buyer);
+ assert.equal((await f.service.handle(req('files',{id:order.id},cookie))).status,200);
+ assert.equal((await f.service.handle(req('files',{id:order.id},f.cookie))).status,200);
+ assert.equal(await f.service.allowed(req('session',{},cookie),path),false);
+ const restored=await(await f.service.handle(req('session',{restore:true},cookie))).json();assert.equal(restored.orders[0].id,order.id);
+ const again=await f.service.handle(req('recover',{id:order.id},cookie));assert.equal(again.headers.get('set-cookie'),null);
+ const task=await(await f.service.handle(req('task',{id:order.id},cookie))).json();assert.equal(task.expiresAt,original.paidAt+86400000);
+ const fileRequest=()=>new Request('https://example.com'+task.endpoint+'?'+new URLSearchParams({task:task.token,path}));
+ assert.equal((await f.service.handle(fileRequest())).status,302);
+ f.advance(23*3600000); // Exactly 24 hours after original payment, not recovery.
+ for(const action of ['recover','files','task','download'])assert.equal((await f.service.handle(req(action,{id:order.id},cookie))).status,410,action);
+ assert.equal((await f.service.handle(req('files',{id:order.id},f.cookie))).status,410);
+ assert.equal((await f.service.handle(fileRequest())).status,410);
+ assert.deepEqual((await(await f.service.handle(req('session',{restore:true},cookie))).json()).orders,[]);
+});
+
+test('recovery denies unpaid, closed, refunded, refund-pending, nonexistent and expired orders',async()=>{
+ const f=await fixture(),{order}=await create(f);
+ assert.equal((await f.service.handle(req('recover',{id:order.id}))).status,409);
+ assert.equal((await f.service.handle(req('recover',{id:'DL'+'f'.repeat(32)}))).status,404);
+ assert.equal((await f.service.handle(req('recover',{id:'2026111000000000000000'}))).status,400);
+ await f.service.handle(signedNotify(order));const original=await f.storage.get('order:'+order.id);
+ for(const patch of [{status:'closed'},{status:'refunded'},{refund:{status:'pending'}},{refund:{status:'succeeded'}},{paidAt:undefined}]){
+  await f.storage.put('order:'+order.id,{...original,...patch});const denied=await f.service.handle(req('recover',{id:order.id}));assert.equal(denied.status,409);assert.equal(denied.headers.get('set-cookie'),null);
+ }
+ await f.storage.put('order:'+order.id,original);f.advance(86400000);
+ assert.equal((await f.service.handle(req('recover',{id:order.id}))).status,410);
+});
+
+test('recovered entries persist across refresh, delete locally and may be restored again',async()=>{
+ const f=await fixture(),{order}=await create(f);await f.service.handle(signedNotify(order));
+ await f.service.handle(req('delete',{id:order.id},f.cookie));
+ const response=await f.service.handle(req('recover',{id:order.id})),cookie=response.headers.get('set-cookie').split(';')[0];assert.equal(response.status,200);
+ assert.equal((await(await f.service.handle(req('session',{restore:true},cookie))).json()).orders.length,1);
+ assert.equal((await(await f.service.handle(req('session',{restore:true},f.cookie))).json()).orders.length,0);
+ assert.equal((await f.service.handle(req('delete',{id:order.id},cookie))).status,200);
+ assert.deepEqual((await(await f.service.handle(req('session',{restore:true},cookie))).json()).orders,[]);
+ assert.equal((await f.service.handle(req('files',{id:order.id},cookie))).status,404);
+ assert.equal((await f.service.handle(req('recover',{id:order.id},cookie))).status,200);
+ assert.equal((await f.service.handle(req('recover',{id:order.id},f.cookie))).status,200);
+ assert.equal((await(await f.service.handle(req('session',{restore:true},f.cookie))).json()).orders.length,1);
+ const task=await(await f.service.handle(req('task',{id:order.id},cookie))).json();
+ const paid=await f.storage.get('order:'+order.id);paid.refund={status:'pending'};await f.storage.put('order:'+order.id,paid);
+ assert.equal((await f.service.handle(req('files',{id:order.id},cookie))).status,402);
+ assert.equal((await f.service.handle(new Request('https://example.com'+task.endpoint+'?'+new URLSearchParams({task:task.token,path})))).status,403);
+});
+
+test('recovery is same-origin, bounded, rate limited and does not grant access to other orders',async()=>{
+ const f=await fixture(),{order}=await create(f);await f.service.handle(signedNotify(order));
+ assert.equal((await f.service.handle(req('recover',{id:order.id},'','https://evil.example'))).status,403);
+ assert.equal((await f.service.handle(req('recover',{id:'x'.repeat(3000)}))).status,413);
+ const existing=await f.service.handle(req('session')),cookie=existing.headers.get('set-cookie').split(';')[0];
+ assert.equal((await f.service.handle(req('recover',{id:order.id},cookie))).status,200);
+ const other={...await f.storage.get('order:'+order.id),id:'DL'+'b'.repeat(32)};await f.storage.put('order:'+other.id,other);
+ assert.equal((await f.service.handle(req('files',{id:other.id},cookie))).status,404);
+ for(let i=0;i<29;i++)assert.equal((await f.service.handle(req('recover',{id:'DL'+'f'.repeat(32)},cookie))).status,404);
+ assert.equal((await f.service.handle(req('recover',{id:order.id},cookie))).status,429);
+ f.advance(3600000);assert.equal((await f.service.handle(req('recover',{id:order.id},cookie))).status,200);
+});
 const adminKey='test-only-operator-key-32-characters';
 function operator(action,body,secret=adminKey){return new Request('https://example.com/api/tools/payments/admin/'+action,{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+secret},body:JSON.stringify(body)});}
 
@@ -106,6 +174,68 @@ test('link quotes reject foreign roots, expired quotes and incomplete scans befo
  assert.equal([...await f.storage.list()].filter(([k])=>k.startsWith('order:')).length,0);
 });
 
+test('selection orders price the verified selected bytes and only grant the purchased files',async()=>{
+ const f=await fixture(),root=path.slice(0,path.lastIndexOf('/')),files=[{path,name:'Example.txt',size:123},{path:root+'/folder/large.bin',name:'large.bin',size:50e9},{path:root+'/folder/skip.bin',name:'skip.bin',size:1000e9},{path:root+'/last.txt',name:'last.txt',size:0}];
+ let snapshot='a'.repeat(64);
+ f.service.callAgent=async message=>{
+  if(message.action==='inventory')return {path:root,snapshot,size:files.reduce((sum,file)=>sum+file.size,0),fileCount:files.length,firstPath:path};
+  if(message.action==='bundle-files')return {path:root,page:message.page,total:files.length,files};
+  const file=files.find(item=>item.path===message.filePath);assert.ok(file);return {...file,url:'https://a.baidupcs.com/file'};
+ };
+ const quoteFor=async rules=>{const response=await f.service.handle(req('quote',{path:root,rules,priceCents:1,size:1},f.cookie));assert.equal(response.status,200);return (await response.json()).quote;};
+ const single=await quoteFor([{path:root,selected:false},{path,selected:true}]);assert.equal(single.priceCents,50);assert.equal(single.fileCount,1);assert.equal(single.size,123);
+ const rules=[{path:root,selected:true},{path:root+'/folder/skip.bin',selected:false}];
+ const quote=await quoteFor(rules);assert.equal(quote.priceCents,200);assert.equal(quote.size,50e9+123);assert.equal(quote.fileCount,3);
+ const purchase={kind:'selection',path:root,quoteId:quote.id,requestId:crypto.randomUUID(),priceCents:1};
+ const response=await f.service.handle(req('order',purchase,f.cookie));assert.equal(response.status,200);const {order}=await response.json();assert.equal(order.priceCents,200);assert.equal(order.fileCount,3);
+ const repeated=await(await f.service.handle(req('order',{...purchase,requestId:crypto.randomUUID()},f.cookie))).json();assert.equal(repeated.order.id,order.id);
+ const equivalent=await quoteFor([{path:root,selected:false},{path,selected:true},{path:root+'/folder/large.bin',selected:true},{path:root+'/last.txt',selected:true}]);
+ assert.equal((await(await f.service.handle(req('order',{...purchase,quoteId:equivalent.id,requestId:crypto.randomUUID()},f.cookie))).json()).order.id,order.id);
+ assert.equal((await f.service.handle(req('files',{id:order.id},f.cookie))).status,402);
+ await f.service.handle(signedNotify(order,{total_amount:'2.00'}));
+ const manifest=await(await f.service.handle(req('files',{id:order.id},f.cookie))).json();assert.equal(manifest.total,3);assert.deepEqual(manifest.files.map(file=>file.path),files.filter(file=>!file.path.endsWith('skip.bin')).map(file=>file.path));
+ const task=await(await f.service.handle(req('task',{id:order.id},f.cookie))).json();
+ const get=file=>new Request('https://example.com'+task.endpoint+'?'+new URLSearchParams({task:task.token,path:file}));
+ assert.equal((await f.service.handle(get(path))).status,302);
+ assert.equal((await f.service.handle(get(root+'/folder/skip.bin'))).status,403);
+ assert.equal((await f.service.handle(req('download',{id:order.id,path:root+'/folder/skip.bin'},f.cookie))).status,403);
+ assert.equal((await f.service.handle(get('/other.txt'))).status,403);
+ const recovered=await f.service.handle(req('recover',{id:order.id})),cookie=recovered.headers.get('set-cookie').split(';')[0];assert.equal(recovered.status,200);
+ assert.equal((await(await f.service.handle(req('files',{id:order.id},cookie))).json()).total,3);
+ const stored=await f.storage.get('order:'+order.id);stored.refund={status:'pending'};await f.storage.put('order:'+order.id,stored);
+ assert.equal((await f.service.handle(get(path))).status,403);assert.equal((await f.service.handle(req('files',{id:order.id},cookie))).status,402);
+ delete stored.refund;await f.storage.put('order:'+order.id,stored);f.advance(86400000);
+ assert.equal((await f.service.handle(req('files',{id:order.id},cookie))).status,410);assert.equal((await f.service.handle(get(path))).status,410);
+});
+
+test('selection quotes reject empty/foreign rules, incomplete inventories, stale snapshots and kind forgery',async()=>{
+ const f=await fixture(),root=path.slice(0,path.lastIndexOf('/'));let snapshot='a'.repeat(64),incomplete=false;
+ f.service.callAgent=async message=>message.action==='inventory'?{path:root,snapshot,size:123,fileCount:1,firstPath:path}:message.action==='bundle-files'?{path:root,total:1,files:incomplete?[]:[{path,name:'Example.txt',size:123}]}:{name:'Example.txt',size:123,url:'https://a.baidupcs.com/file'};
+ for(const rules of [[],[{path:'/other',selected:true}],[{path:root,selected:'true'}],[{path:root,selected:false}],[{path:root,selected:true},{path:root,selected:false}]])assert.equal((await f.service.handle(req('quote',{path:root,rules},f.cookie))).status,400);
+ const {quote}=await(await f.service.handle(req('quote',{path:root,rules:[{path:root,selected:true}]},f.cookie))).json();
+ assert.equal((await f.service.handle(req('order',{path:root,kind:'share',quoteId:quote.id,requestId:crypto.randomUUID()},f.cookie))).status,409);
+ snapshot='b'.repeat(64);assert.equal((await f.service.handle(req('order',{path:root,kind:'selection',quoteId:quote.id,requestId:crypto.randomUUID()},f.cookie))).status,409);
+ incomplete=true;assert.equal((await f.service.handle(req('quote',{path:root,rules:[{path:root,selected:true}]},f.cookie))).status,502);
+ assert.equal([...await f.storage.list()].filter(([key])=>key.startsWith('order:')).length,0);
+});
+
+test('single-file selection reuses a legacy paid grant and selected manifests paginate across storage chunks',async()=>{
+ const f=await fixture(),{order}=await create(f),root=path.slice(0,path.lastIndexOf('/'));await f.service.handle(signedNotify(order));
+ let files=[{path,name:'Example.txt',size:123}];
+ f.service.callAgent=async message=>{
+  if(message.action==='inventory')return {path:root,snapshot:'a'.repeat(64),size:files.length*123,fileCount:files.length,firstPath:path};
+  if(message.action==='bundle-files')return {path:root,total:files.length,files:files.slice((message.page-1)*100,message.page*100)};
+  return {name:'Example.txt',size:123,url:'https://a.baidupcs.com/file'};
+ };
+ const quoteFor=async()=> (await(await f.service.handle(req('quote',{path:root,rules:[{path:root,selected:true}]},f.cookie))).json()).quote;
+ let quote=await quoteFor();const reused=await(await f.service.handle(req('order',{path:root,kind:'selection',quoteId:quote.id,requestId:crypto.randomUUID()},f.cookie))).json();assert.equal(reused.order.id,order.id);assert.equal(reused.checkout,null);
+ files=Array.from({length:205},(_,index)=>({path:root+'/file-'+index+'.txt',name:'file-'+index+'.txt',size:123}));
+ quote=await quoteFor();const created=await(await f.service.handle(req('order',{path:root,kind:'selection',quoteId:quote.id,requestId:crypto.randomUUID()},f.cookie))).json();assert.equal(created.order.fileCount,205);
+ await f.service.handle(signedNotify(created.order,{total_amount:'1.00',trade_no:'2026111022000000000000002'}));
+ const collected=[];for(let page=1;page<=3;page++){const manifest=await(await f.service.handle(req('files',{id:created.order.id,page},f.cookie))).json();assert.equal(manifest.total,205);collected.push(...manifest.files);}
+ assert.deepEqual(collected,files);assert.equal((await f.service.handle(req('files',{id:created.order.id,page:4},f.cookie))).status,400);
+});
+
 test('paid task capabilities redirect downloaders without cookies, validate metadata and revoke on refund or expiry',async()=>{
  const f=await fixture(),{order}=await create(f);
  assert.equal((await f.service.handle(req('task',{id:order.id},f.cookie))).status,402);
@@ -157,6 +287,32 @@ test('checkout permits official cashier redirects, keeps merchant return and pro
   assert.match(html,/<button type="submit">继续前往支付宝<\/button>/);
   assert.match(html,/document.forms\[.*\]\.submit\(\)/);
   assert.equal(checkoutParams(html).searchParams.get('biz_content').includes('0.50'),true);
+ }
+});
+
+test('mobile checkout uses the signed WAP product, original amount, callback and cancellation return',()=>{
+ const order={id:'DL'+'a'.repeat(32),expiresAt:Date.now()+900000,amountCents:300,kind:'share',checkoutKind:'wap'};
+ const params=checkoutParams(alipayClient({...env,ALIPAY_ENV:'production'}).checkout(order)).searchParams,biz=JSON.parse(params.get('biz_content'));
+ assert.equal(params.get('method'),'alipay.trade.wap.pay');assert.equal(biz.product_code,'QUICK_WAP_WAY');assert.equal(biz.total_amount,'3.00');
+ assert.equal(biz.out_trade_no,order.id);assert.equal(params.get('notify_url'),'https://example.com/api/tools/payments/notify');
+ assert.equal(biz.quit_url,params.get('return_url'));assert.equal(biz.quit_url,'https://example.com/tools/?payment_order='+order.id);
+ const payload=[...params].filter(([key])=>key!=='sign').sort(([a],[b])=>a<b?-1:1).map(([key,value])=>key+'='+value).join('&');
+ assert.equal(verify('RSA-SHA256',Buffer.from(payload),merchant.publicKey,Buffer.from(params.get('sign'),'base64')),true);
+});
+
+test('WAP rollout is gated and existing pending orders retain their original checkout method',async()=>{
+ for(const [mode,mobile,trial,kind]of [
+  [undefined,true,true,'page'],['false',true,true,'page'],['trial',true,false,'page'],['trial',true,true,'wap'],['true',true,false,'wap'],['true',false,true,'page'],['true','true',true,'page']
+ ]){
+  const f=await fixture({TOOLS_PAYMENT_MOBILE_ENABLED:mode});
+  const response=await f.service.handle(req('order',{path,requestId:crypto.randomUUID(),mobile,mobileTrial:trial,checkoutKind:'wap'},f.cookie));assert.equal(response.status,200);
+  const data=await response.json();assert.equal(data.order.checkoutKind,kind);
+  const page=await f.service.handle(new Request(data.checkout,{headers:{Cookie:f.cookie}}));assert.equal(page.status,200);
+  assert.equal(checkoutParams(await page.text()).searchParams.get('method'),kind==='wap'?'alipay.trade.wap.pay':'alipay.trade.page.pay');
+  f.service.cfg.mobileMode=kind==='wap'?'disabled':'enabled';
+  const repeat=await(await f.service.handle(req('order',{path,requestId:crypto.randomUUID(),mobile:true,mobileTrial:true},f.cookie))).json();
+  assert.equal(repeat.order.id,data.order.id);assert.equal(repeat.order.checkoutKind,kind);
+  await f.service.handle(signedNotify(data.order));assert.equal((await f.service.handle(req('files',{id:data.order.id},f.cookie))).status,200);
  }
 });
 test('certificate mode requires all three certificates and the official SDK adds certificate serials',()=>{

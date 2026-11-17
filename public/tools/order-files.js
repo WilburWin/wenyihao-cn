@@ -27,7 +27,7 @@ function summary(){
 }
 export function chooseOrderFiles({files,root,kind,name,preferredPath,onGenerate,onBack}){
  clearOrderFiles();page=0;query='';$('order-file-search').value='';$('order-file-status').textContent='';$('order-file-title').textContent=name;
- current={files:files.map(file=>({...file,label:kind==='share'?file.path.slice(root.length+1):file.name})),selected:new Set(files.filter(file=>!preferredPath||file.path===preferredPath).map(file=>file.path)),onGenerate,onBack};
+ current={files:files.map(file=>({...file,label:['share','selection'].includes(kind)?file.path.slice(root.length+1):file.name})),selected:new Set(files.filter(file=>!preferredPath||file.path===preferredPath).map(file=>file.path)),onGenerate,onBack};
  render();$('order-file-search').focus();
 }
 $('order-file-search').addEventListener('input',()=>{query=$('order-file-search').value.trim().toLocaleLowerCase();page=0;render();});

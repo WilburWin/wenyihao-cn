@@ -20,16 +20,22 @@ export function showWorkspace(value){
   for(const panel of document.querySelectorAll('[data-workspace-view]'))panel.hidden=panel.dataset.workspaceView!==value;
   for(const tab of document.querySelectorAll('[data-workspace-tab]')){const selected=tab.dataset.workspaceTab===value;tab.setAttribute('aria-selected',String(selected));tab.tabIndex=selected?0:-1;}
   document.dispatchEvent(new CustomEvent('tools:view',{detail:value}));
+  if(matchMedia('(max-width:900px)').matches)$('tab-'+value).scrollIntoView({block:'start'});
 }
 export function showTask(value){
-  const dialog=$('task-dialog');$('payment-checkout').hidden=value!=='payment';$('download-detail').hidden=value!=='download';$('share-detail').hidden=value!=='share';$('order-files').hidden=value!=='order-files';
+  const dialog=$('task-dialog'),panel=$({payment:'payment-checkout',download:'download-detail',share:'share-detail','order-files':'order-files'}[value]);
+  const changed=!dialog.open||panel?.hidden;
+  $('payment-checkout').hidden=value!=='payment';$('download-detail').hidden=value!=='download';$('share-detail').hidden=value!=='share';$('order-files').hidden=value!=='order-files';
   if(value==='share')$('share-detail').append($('share-result'));else restoreShare();
   $('task-heading').textContent=value==='payment'?'订单与支付':value==='share'?'分享详情':value==='order-files'?'选择下载文件':'批量下载';
   if(!dialog.open)dialog.showModal();
+  if(changed)dialog.scrollTop=0;
 }
 function restoreShare(){if($('share-detail').contains($('share-result')))document.querySelector('.import-guide').insertBefore($('share-result'),document.querySelector('.guide-foot'));}
 export function closeTask(){if($('task-dialog').open)$('task-dialog').close();}
 export function visibleRows(container,property,fallback){
+  // Mobile lists grow with the page. A fixed page size avoids a resize/render loop.
+  if(matchMedia('(max-width:900px)').matches)return 12;
   if(!container.clientHeight)return fallback;
   return Math.max(1,Math.floor(container.clientHeight/(Number.parseFloat(getComputedStyle(document.body).getPropertyValue(property))||60)));
 }

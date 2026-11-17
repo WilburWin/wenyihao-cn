@@ -1,8 +1,7 @@
 const $=id=>document.getElementById(id);
 let sending=false,pending=null,receipt='';
 function openFeedback(button){
- const order=button.hasAttribute('data-feedback-order')&&!$('payment-order-reference').hidden?$('payment-order-number').textContent.trim():'';
- if(order)$('feedback-order').value=order;
+ if(button.hasAttribute('data-feedback-order'))$('feedback-order').value=(!$('download-detail').hidden?$('download-order-number').textContent:!$('payment-order-reference').hidden?$('payment-order-number').textContent:'').trim();
  $('feedback-dialog').showModal();$('feedback-kind').focus();
 }
 for(const button of document.querySelectorAll('[data-feedback-open]'))button.addEventListener('click',()=>openFeedback(button));

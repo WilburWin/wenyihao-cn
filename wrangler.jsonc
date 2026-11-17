@@ -5,7 +5,7 @@
   "compatibility_date": "2026-10-01",
   "compatibility_flags": ["nodejs_compat"],
   "dev": { "host": "localhost" },
-  "vars": { "MUSIC_API_TRANSPORT": "socket", "MUSIC_AUDIO_DELIVERY": "relay", "MUSIC_BACKEND_MODE": "regional", "GAME_SITE_ORIGIN": "https://wenyihao.cn", "SITE_EDGE_ORIGINS": "https://rt.wenyihao.cn", "ALIPAY_ENV": "production", "ALIPAY_SIGN_MODE": "public-key", "ALIPAY_KEY_TYPE": "PKCS1", "PAYMENT_SITE_ORIGIN": "https://wenyihao.cn", "TOOLS_PAYMENT_ENABLED": "true" },
+  "vars": { "MUSIC_API_TRANSPORT": "socket", "MUSIC_AUDIO_DELIVERY": "relay", "MUSIC_BACKEND_MODE": "regional", "GAME_SITE_ORIGIN": "https://wenyihao.cn", "SITE_EDGE_ORIGINS": "https://rt.wenyihao.cn", "ALIPAY_ENV": "production", "ALIPAY_SIGN_MODE": "public-key", "ALIPAY_KEY_TYPE": "PKCS1", "PAYMENT_SITE_ORIGIN": "https://wenyihao.cn", "TOOLS_PAYMENT_ENABLED": "true", "TOOLS_PAYMENT_MOBILE_ENABLED": "true" },
   "services": [{ "binding": "MUSIC_BACKEND", "service": "wenyihao-cn-music" }],
   "routes": [
     { "pattern": "wenyihao.cn", "custom_domain": true },
