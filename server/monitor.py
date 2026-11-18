@@ -132,7 +132,7 @@ def machine_snapshot(state, rate, now):
         game = {'online': bool(game.get('ok')), 'connections': game.get('connections', 0), 'rooms': game.get('rooms', 0)}
     except Exception:
         game = {'online': False, 'connections': 0, 'rooms': 0}
-    budget = int(os.environ.get('MONTHLY_BUDGET_BYTES', '1000000000'))
+    budget = int(os.environ.get('MONTHLY_BUDGET_BYTES', '3000000000'))
     return {'updatedAt': now.isoformat(), 'cpuPercent': round(max(0, min(100, percent)), 1),
             'memoryTotal': mem['MemTotal'], 'memoryUsed': mem['MemTotal']-mem['MemAvailable'],
             'diskUsed': disk.used, 'diskTotal': disk.total,
@@ -214,7 +214,7 @@ def main():
     boot = Path('/proc/sys/kernel/random/boot_id').read_text().strip()
     uptime = float(Path('/proc/uptime').read_text().split()[0])
     state, rate = account(previous, tx, boot, now, now-dt.timedelta(seconds=uptime))
-    budget = int(os.environ.get('MONTHLY_BUDGET_BYTES', '1000000000'))
+    budget = int(os.environ.get('MONTHLY_BUDGET_BYTES', '3000000000'))
     if budget <= 0:
         raise ValueError('Invalid monthly budget')
     if state['monthlyBytes'] >= budget:

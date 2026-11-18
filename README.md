@@ -94,7 +94,7 @@ node scripts/music-session-key.mjs | npx wrangler secret put MUSIC_SESSION_KEY
 
 后续采用 Cloudflare DNS 与音乐、ECS 主站与联机的混合架构，当前尚未切换。阶段、流量边界、登录影响和回退步骤见 [混合部署搬迁方案](docs/hybrid-migration.md)。
 
-公开只读监控入口 `/admin/`，服务器每分钟上报概况，按每月 1 GB 设置出站预警和 Web 响应保护，微信日报通过 Server酱发送。隐私、脱敏访客城市、统计差异及回退见 [服务器监控](docs/server-monitor.md)。
+公开只读监控入口 `/admin/`，服务器每分钟上报概况，按每月 3 GB 设置出站预警和 Web 响应保护，微信日报通过 Server酱发送。隐私、脱敏访客城市、统计差异及回退见 [服务器监控](docs/server-monitor.md)。
 
 ## 内容维护
 
